@@ -5,7 +5,7 @@ import scipy.signal
 import torch
 import torch.nn as nn
 import torchaudio.functional as F
-import trace
+import trace1
 
 
 torch.set_default_dtype(torch.float32)
@@ -102,7 +102,7 @@ class Renderer(nn.Module):
         self.energy_vector = nn.Parameter(A)
 
         # Setting up Frequency responses
-        n_freq_samples = 1 + 2 ** int(math.ceil(math.log(self.filter_length, 2)))
+        n_freq_samples = 1 + 2 ** int(math.ceil(math.log(self.filter_length, 2))) #????????why filter length
         self.freq_grid = torch.linspace(0.0, self.nyq, n_freq_samples)
         surface_freq_indices = torch.round(self.surface_freqs*((n_freq_samples-1)/self.nyq)).int() 
 
@@ -176,7 +176,7 @@ class Renderer(nn.Module):
 
         # reflection_frequency_response = n_paths * n_freq_samples
         reflection_frequency_response = torch.prod(torch.prod(
-            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########??????perché moltiplica coefficiente riflessione e assorbimento?
 
 
         """
@@ -342,7 +342,7 @@ def get_listener(source_xyz, listener_xyz, surfaces, load_dir=None, load_num=Non
     if load_dir is None: 
         # Tracing from Scratch
         reflections, transmissions, delays, start_directions, end_directions = (
-            trace.get_reflections_transmissions_and_delays(
+            trace1.get_reflections_transmissions_and_delays(
             source=source_xyz, dest=listener_xyz, surfaces=surfaces, speed_of_sound=speed_of_sound,
             max_order=max_order,parallel_surface_pairs=parallel_surface_pairs, max_axial_order=max_axial_order)
         )
@@ -387,7 +387,7 @@ def get_interpolator(n_freq_target, freq_indices):
     return result
 
 def gen_counts(surface_indices, n_surfaces):
-    """Generates a (n_paths, n_surfaces) 0-1 mask indicating reflections"""
+    """Generates a (n_paths, n_surfaces) 0-1 mask indicating reflections"""#?????se riflette più di una volta sulla stessa superficie il valore sarà >1??
     n_reflections = len(surface_indices)
     result = torch.zeros(n_reflections, n_surfaces)
     for i in range(n_reflections):

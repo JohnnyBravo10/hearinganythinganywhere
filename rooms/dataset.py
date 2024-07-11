@@ -28,7 +28,7 @@ class Dataset:
     all_surfaces: list of Surface - surfaces definining room's geometry
     speed_of_sound: in m/s
     default_binaural_listener_forward: (3,) direction the binaural mic is facing
-    default_binaural_listener_left: (3,) points left out from the binaural mic
+    default_binaural_listener_left: (3,) points left out from the binaural mic ??????????????????No, non è vero??????
     max_order: default reflection order for tracing this dataset
     max_axial_order: default reflection order for parallel walls
     """
@@ -93,6 +93,10 @@ def dataLoader(name):
         import rooms.classroom as classroom
         if name=="classroomBase":
             D = classroom.BaseDataset
+        ##########################
+        elif name=="classroomAddedPanel":
+            D = classroom.AddedPanelDataset
+        ##########################
         else:
             raise ValueError('Invalid Dataset Name')
 
