@@ -51,7 +51,6 @@ right_table = G.Surface(np.array([[max_x, 23.75*inches, 29*inches],
                                        [max_x, max_y, 29*inches],
                                        [max_x - 30*inches, 23.75*inches, 28.25*inches]]))
 
-
 middle_table = G.Surface(np.array([[4.474256, 89*inches, 29*inches],
                                      [4.474256, max_y, 29*inches],
                                         [2.935758, 89*inches, 28.25*inches]]))
