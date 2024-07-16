@@ -24,7 +24,7 @@ def get_surfaces_from_point_cloud(pcd_path):
         p2 = midpoints[1]
         points = [p0, p1, p2]
         #the surface is a section of the planar patch
-        surfaces.append(G.Surface(points))
+        surfaces.append(G.Surface(np.array(points)))
 
     return surfaces
 
@@ -40,7 +40,9 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
         for j in range (i+1,8):
             edges.append([i,j])
     for plane in planes:
+        print(plane)
         vertices = np.asarray(plane.get_box_points())
+        #internal_points = pcd.points[plane.get_point_indices_within_bounding_box(pcd.points)]
         target = len(plane.get_point_indices_within_bounding_box(pcd.points))
         edges = sorted(edges, key= lambda edge: np.linalg.norm(vertices[edge[0]] - vertices[edge[1]]))
 
@@ -102,6 +104,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[3] + (1-cut)*face_down_vertices[1],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[1], face_down_vertices[2], face_up_vertices[2]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:  
+                print("optimization found 1")#######################
                 best_surface = [True, [np.mean([face_down_vertices[1], face_up_vertices[1]], axis=0),  np.mean([cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2], cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2]], axis=0), np.mean([cut*face_down_vertices[3] + (1-cut)*face_down_vertices[1],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[1]], axis=0)], new_area]
             
             noise = np.random.normal(scale=1e-8, size=(6, 3))
@@ -109,6 +112,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[1], face_up_vertices[1], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3], face_down_vertices[0], face_up_vertices[0]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:
+                print("optimization found 2")#######################
                 best_surface = [True, [np.mean([face_down_vertices[3], face_up_vertices[3]], axis=0),  np.mean([cut*face_down_vertices[2] + (1-cut)*face_down_vertices[0], cut*face_up_vertices[2] + (1-cut)*face_up_vertices[0]], axis=0), np.mean([cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3]], axis=0)], new_area]
 
             noise = np.random.normal(scale=1e-8, size=(6, 3))
@@ -116,6 +120,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[3] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[2], face_down_vertices[1], face_up_vertices[1]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:
+                print("optimization found 3")#######################
                 best_surface = [True, [np.mean([face_down_vertices[1], face_up_vertices[1]], axis=0),  np.mean([cut*face_down_vertices[0] + (1-cut)*face_down_vertices[1], cut*face_up_vertices[0] + (1-cut)*face_up_vertices[1]], axis=0), np.mean([cut*face_down_vertices[3] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[2]], axis=0)], new_area]
 
             noise = np.random.normal(scale=1e-8, size=(6, 3))
@@ -123,16 +128,18 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[2], face_up_vertices[2], cut*face_down_vertices[2] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[3], face_down_vertices[0], face_up_vertices[0]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:
+                print("optimization found 4")#######################
                 best_surface = [True, [np.mean([face_down_vertices[3], face_up_vertices[3]], axis=0),  np.mean([cut*face_down_vertices[1] + (1-cut)*face_down_vertices[0], cut*face_up_vertices[1] + (1-cut)*face_up_vertices[0]], axis=0), np.mean([cut*face_down_vertices[2] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[3]], axis=0)], new_area]
 
             #trying to cut part of the rectangle to use triangle
-            new_area = np.linalg.norm(face_down_vertices[0] - face_down_vertices[2]) * np.linalg.norm(face_down_vertices[1] - face_down_vertices[3]) / 2
+            new_area = np.linalg.norm(face_down_vertices[0] - face_down_vertices[2]) * np.linalg.norm(face_down_vertices[1] - face_down_vertices[3]) * 0.5
 
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_1 = Delaunay((np.array([face_down_vertices[0], face_up_vertices[0], cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2], face_down_vertices[1], face_up_vertices[1]])) + noise)
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2], face_down_vertices[2], face_up_vertices[2]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:    
+                print("optimization found 5")#######################
                 best_surface = [False, [np.mean([face_down_vertices[1], face_up_vertices[1]], axis=0),  np.mean([ cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2]], axis=0), np.mean([face_down_vertices[3], face_up_vertices[3]], axis=0)], new_area]
 
             noise = np.random.normal(scale=1e-8, size=(6, 3))
@@ -140,6 +147,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3], face_down_vertices[2], face_up_vertices[2]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:    
+                print("optimization found 6")#######################
                 best_surface = [False, [np.mean([face_down_vertices[0], face_up_vertices[0]], axis=0),  np.mean([ cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3]], axis=0), np.mean([face_down_vertices[2], face_up_vertices[2]], axis=0)], new_area]
                 
             noise = np.random.normal(scale=1e-8, size=(6, 3))
@@ -147,6 +155,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[0],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[0], face_down_vertices[1], face_up_vertices[1]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:    
+                print("optimization found 7")#######################
                 best_surface = [False, [np.mean([face_down_vertices[2], face_up_vertices[2]], axis=0),  np.mean([cut*face_down_vertices[1] + (1-cut)*face_down_vertices[0],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[0]], axis=0), np.mean([face_down_vertices[3], face_up_vertices[3]], axis=0)], new_area]
 
             noise = np.random.normal(scale=1e-8, size=(6, 3))
@@ -154,6 +163,9 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             noise = np.random.normal(scale=1e-8, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[2] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[3], face_down_vertices[1], face_up_vertices[1]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < cut_impurity * target) and new_area < best_surface[2]:    
+                print("optimization found 8")#######################
                 best_surface = [False, [np.mean([face_down_vertices[0], face_up_vertices[0]], axis=0),  np.mean([cut*face_down_vertices[2] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[3]], axis=0), np.mean([face_down_vertices[1], face_up_vertices[1]], axis=0)], new_area]
 
-            surfaces.append(G.Surface(best_surface[1], best_surface[0]))
+        surfaces.append(G.Surface(np.array(best_surface[1]), best_surface[0]))
+
+    return surfaces
