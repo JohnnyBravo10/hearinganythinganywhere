@@ -247,6 +247,215 @@ class Renderer(nn.Module):
         
         RIR_early = RIR_early*(self.sigmoid(self.decay)**self.times)
         return RIR_early
+    
+    ###########################################################################
+    #gives the key to insert a path into a dictionary of RIR_by_direction
+    #forward is [0,1,0], left is [-1,0,0]
+    def get_direction_key(direction):
+        norm = np.linalg.norm(direction).reshape(-1,1)
+        direction = direction/norm
+        listener_forward = np.array([0,1,0])
+        listener_left = np.array([-1,0,0])
+
+        #Make sure listener_forward and listener_left are orthogonal
+        assert np.abs(np.dot(listener_forward, listener_left)) < 0.01
+
+        listener_up = np.cross(listener_forward, listener_left)
+        basis = np.stack((listener_forward, listener_left, listener_up), axis=-1)
+
+        #Compute Azimuths and Elevation
+        coordinates = direction @ basis
+        azimuth = np.degrees(np.arctan2(coordinates[1], coordinates[0]))
+        elevation = np.degrees(np.arctan(coordinates[2]/np.linalg.norm(coordinates[0:2])+1e-8))
+
+        negative = elevation < 0
+        elevation = abs(elevation)
+    
+        if negative:
+            if elevation <= 7.5:
+                suffix = "0,0"
+            elif 7.5 <= elevation <  16.25:
+                suffix = "-15,0"
+            elif 16.25 <= elevation < 21.25:
+                suffix = "-17,5"
+            elif 21.25 <= elevation < 27.5:
+                suffix = "-25,0"
+            elif 27.5 <= elevation < 32.65:
+                suffix = "-30,0"
+            elif 32.65 <= elevation < 40.15:
+                suffix = "-35,3"
+            elif 40.15 <= elevation < 49.5:
+                suffix = "-45,0"
+            elif 49.5 <= elevation < 57:
+                suffix = "-54,0"
+            elif 57 <= elevation < 62.4:
+                suffix = "-60,0"
+            elif 62.4 <= elevation < 69.9:
+                suffix = "-64,8"        
+            elif 69.9 <= elevation < 78:
+                suffix = "-75,0"
+            elif elevation >= 78:
+                suffix = "-81,0"
+        else:
+            if elevation <= 7.5:
+                suffix = "0,0"
+            elif 7.5 <= elevation <  16.25:
+                suffix = "15,0"
+            elif 16.25 <= elevation < 21.25:
+                suffix = "17,5"
+            elif 21.25 <= elevation < 27.5:
+                suffix = "25,0"
+            elif 27.5 <= elevation < 32.65:
+                suffix = "30,0"
+            elif 32.65 <= elevation < 40.15:
+                suffix = "35,3"
+            elif 40.15 <= elevation < 49.5:
+                suffix = "45,0"
+            elif 49.5 <= elevation < 57:
+                suffix = "54,0"
+            elif 57 <= elevation < 62.4:
+                suffix = "60,0"
+            elif 62.4 <= elevation < 69.9:
+                suffix = "64,8"        
+            elif 69.9 <= elevation < 82.5:
+                suffix = "75,0"
+            elif elevation >= 82.5:
+                suffix = "90,0"
+
+        azimuth = str(int(np.round(azimuth) % 360))
+        key = "azi_" + azimuth + ",0_ele_" + suffix
+
+        return key        
+    ################################################################################
+
+
+
+    ##############################################################################
+    def render_early_with_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """
+        Renders the early-stage RIR
+
+        Parameters
+        ----------
+        loc: ListenerLocation
+            characterizes the location at which we render the early-stage RIR
+        hrirs: np.array (n_paths x 2 x h_rir_length)
+            head related IRs for each reflection path's direction
+        source_axis_1: np.array (3,)
+            first axis specifying virtual source rotation,
+            default is None which is (1,0,0)
+        source_axis_2: np.array (3,)
+            second axis specifying virtual source rotation,
+            default is None which is (0,1,0)        
+
+        Returns
+        -------
+        RIR_early_by_direction - dictionary of 24 (N,) tensor, early-stage RIR for each direction of arrival to the listener
+        """
+
+        """
+        Computing Reflection Response
+        """
+        n_paths = loc.delays.shape[0]
+        energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
+        amplitudes = torch.sqrt(energy_coeffs)
+
+        # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
+        # path reflects off surface
+        mask = torch.stack((loc.reflection_mask, loc.transmission_mask), dim=-1).unsqueeze(-1).to(self.device)
+        
+        # gains_profile is n_paths * n_surfaces * 2 * num_frequencies * 1
+        if not self.model_transmission:  
+            paths_without_transmissions = torch.sum(loc.transmission_mask, dim=-1) == 0
+        gains_profile = (amplitudes[:,0:2,:].unsqueeze(0)**mask).unsqueeze(-1)
+
+        # reflection_frequency_response = n_paths * n_freq_samples
+        reflection_frequency_response = torch.prod(torch.prod(
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########??????perché moltiplica coefficiente riflessione e assorbimento?
+
+
+        """
+        Computing Directivity Response
+        """
+        start_directions_normalized = loc.start_directions_normalized.to(self.device)
+
+        # If there is speaker rotation
+        if source_axis_1 is not None and source_axis_2 is not None:
+            source_axis_3 = np.cross(source_axis_1 ,source_axis_2)
+            source_basis = np.stack( (source_axis_1, source_axis_2, source_axis_3), axis=-1)
+            start_directions_normalized_transformed = (
+                start_directions_normalized @ torch.Tensor(source_basis).double().cuda())
+            dots =  start_directions_normalized_transformed @ (self.sphere_points).T
+        else:
+            dots = start_directions_normalized @ (self.sphere_points).T
+
+        
+        # Normalized weights for each directivity bin
+        weights = torch.exp(-self.sharpness*(1-dots))
+        weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
+        weighted = weights.unsqueeze(-1) * self.directivity_sphere
+        directivity_profile = torch.sum(weighted, dim=1)
+        directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
+        directivity_amplitude_response = torch.exp(directivity_response)
+
+        """
+        Computing overall frequency response, minimum phase transform
+        """
+        frequency_response = directivity_amplitude_response*reflection_frequency_response
+        phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
+        fx2 = frequency_response*torch.exp(1j*phases)
+        out_full = torch.fft.irfft(fx2)
+        out = out_full[...,:self.filter_length] * self.window
+
+
+        """
+        Compiling RIR
+        """
+        reflection_kernels = torch.zeros(n_paths, self.RIR_length).to(self.device)
+    
+        if self.toa_perturb:
+            noises = 7*torch.randn(n_paths, 1).to(self.device)
+
+        for i in range(n_paths):            
+            if self.toa_perturb:
+                delay = loc.delays[i] + torch.round(noises[i]).int()
+            else:
+                delay = loc.delays[i]
+
+            # factor/delay gives us the 1/(radius in meters)
+            factor = (2*self.nyq)/343
+            reflection_kernels[i, delay:delay+out.shape[-1]] = out[i]*(factor/(delay))
+
+            if not self.model_transmission:
+                reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
+        
+        if hrirs is not None:
+            reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
+            reflection_kernels = F.fftconvolve(reflection_kernels, hrirs.to(self.device)) # hrirs are n_paths x 2 x length
+        '''
+            RIR_early = torch.sum(reflection_kernels, axis=0) 
+            RIR_early = F.fftconvolve(
+                (self.source_response - torch.mean(self.source_response)).view(1,-1), RIR_early)[...,:self.RIR_length]
+        else:
+            RIR_early = torch.sum(reflection_kernels, axis=0)
+            RIR_early = F.fftconvolve(
+                self.source_response - torch.mean(self.source_response), RIR_early)[:self.RIR_length]
+        '''
+        RIR_early_by_direction = dict()
+        for i in range(n_paths):
+            key = get_direction_key(loc.end_directions[i])
+            if key in RIR_early_by_direction:
+                RIR_early_by_direction[key] += reflection_kernels[i]
+            else:
+                RIR_early_by_direction[key] = reflection_kernels[i]
+
+        for key in RIR_early_by_direction:
+            RIR_early_by_direction[key]= F.fftconvolve(
+                self.source_response - torch.mean(self.source_response), RIR_early_by_direction[key])[:self.RIR_length]
+            RIR_early_by_direction[key] = RIR_early_by_direction[key]*(self.sigmoid(self.decay)**self.times)
+
+        return RIR_early_by_direction
+    ##############################################################################
         
     def render_late(self, loc):    
         """Renders the late-stage RIR. Future work may implement other ways of modeling the late-stage."""    
@@ -270,6 +479,29 @@ class Renderer(nn.Module):
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
         RIR = late*self.spline + early*(1-self.spline)
         return RIR
+    
+    ###################################################################
+    def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """Renders the RIR."""
+        early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        for early_directional_rir in early.values():
+            while torch.sum(torch.isnan(early_directional_rir)) > 0: # Check for numerical issues
+                print("nan found - trying again")
+                early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        late = self.render_late(loc=loc)/24
+
+        # Blend early and late stage together using spline
+        self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
+
+        RIR_by_direction = early.copy()
+        for key in RIR_by_direction:
+            RIR_by_direction[key] = late*self.spline + early[key]*(1-self.spline)
+ 
+        return RIR_by_direction
+
+    ###################################################################
 
 
 class ListenerLocation():

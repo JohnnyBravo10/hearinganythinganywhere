@@ -78,6 +78,37 @@ def training_loss(x,y,cutoff=9000, eps=1e-6):
     tiny_hop_loss = L1_and_Log(x[...,:cutoff], y[...,:cutoff], n_fft=256, eps=eps, hop_length=1)
     return loss1 + loss2 + loss3 + loss4 + tiny_hop_loss
 
+###########################################################
+def training_loss_considering_directionality(x,y, cutoff =9000, eps=1e-6):
+    """
+    Training Loss considering directionality
+
+    Computes spectral L1 and log spectral L1 loss for each direction
+
+    Parameters
+    ----------
+    x: dictionary of (up to) 24 first audio waveform(s) (one for each direction of arrival), torch.tensor
+    y: dictionary of (up to) 24 second audio waveform(s) (one for each direction of arrival), torch.tensor
+    eps: added to the magnitude stft before taking the square root. Limits dynamic range of spectrogram.
+
+    Returns
+    -------
+    loss: float tensor
+    """
+
+    loss = 0
+    all_keys = set(x.keys()).union(y.keys())
+    for key in all_keys:
+        if key in x and key in y:
+            loss += training_loss((x[key]), y[key], cutoff=cutoff, eps=eps)
+        elif key not in x:
+            loss += training_loss(torch.zeros_like(y[key]), y[key], cutoff=cutoff, eps=eps)
+        elif key not in y:
+            loss += training_loss(x[key], torch.zeros_like(x[key]), cutoff=cutoff, eps=eps)
+
+    return loss
+
+############################################################
 
 """
 Evaluation Metrics

@@ -15,7 +15,8 @@ speed_of_sound = 343
 Locations of all surfaces in Meters
 """
 d = o3d.data.LivingRoomPointClouds()
-base_surfaces = S.get_surfaces_from_point_cloud(d.paths[30])
+#base_surfaces = S.get_surfaces_from_point_cloud(d.paths[30])
+base_surfaces = S.get_surfaces_from_point_cloud_with_optimization(d.paths[30], cut_impurity=0.05, steps_per_side=11)
 
 """
 Train and Test Split
