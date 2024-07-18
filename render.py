@@ -248,85 +248,6 @@ class Renderer(nn.Module):
         RIR_early = RIR_early*(self.sigmoid(self.decay)**self.times)
         return RIR_early
     
-    ###########################################################################
-    #gives the key to insert a path into a dictionary of RIR_by_direction
-    #forward is [0,1,0], left is [-1,0,0]
-    def get_direction_key(direction):
-        norm = np.linalg.norm(direction).reshape(-1,1)
-        direction = direction/norm
-        listener_forward = np.array([0,1,0])
-        listener_left = np.array([-1,0,0])
-
-        #Make sure listener_forward and listener_left are orthogonal
-        assert np.abs(np.dot(listener_forward, listener_left)) < 0.01
-
-        listener_up = np.cross(listener_forward, listener_left)
-        basis = np.stack((listener_forward, listener_left, listener_up), axis=-1)
-
-        #Compute Azimuths and Elevation
-        coordinates = direction @ basis
-        azimuth = np.degrees(np.arctan2(coordinates[1], coordinates[0]))
-        elevation = np.degrees(np.arctan(coordinates[2]/np.linalg.norm(coordinates[0:2])+1e-8))
-
-        negative = elevation < 0
-        elevation = abs(elevation)
-    
-        if negative:
-            if elevation <= 7.5:
-                suffix = "0,0"
-            elif 7.5 <= elevation <  16.25:
-                suffix = "-15,0"
-            elif 16.25 <= elevation < 21.25:
-                suffix = "-17,5"
-            elif 21.25 <= elevation < 27.5:
-                suffix = "-25,0"
-            elif 27.5 <= elevation < 32.65:
-                suffix = "-30,0"
-            elif 32.65 <= elevation < 40.15:
-                suffix = "-35,3"
-            elif 40.15 <= elevation < 49.5:
-                suffix = "-45,0"
-            elif 49.5 <= elevation < 57:
-                suffix = "-54,0"
-            elif 57 <= elevation < 62.4:
-                suffix = "-60,0"
-            elif 62.4 <= elevation < 69.9:
-                suffix = "-64,8"        
-            elif 69.9 <= elevation < 78:
-                suffix = "-75,0"
-            elif elevation >= 78:
-                suffix = "-81,0"
-        else:
-            if elevation <= 7.5:
-                suffix = "0,0"
-            elif 7.5 <= elevation <  16.25:
-                suffix = "15,0"
-            elif 16.25 <= elevation < 21.25:
-                suffix = "17,5"
-            elif 21.25 <= elevation < 27.5:
-                suffix = "25,0"
-            elif 27.5 <= elevation < 32.65:
-                suffix = "30,0"
-            elif 32.65 <= elevation < 40.15:
-                suffix = "35,3"
-            elif 40.15 <= elevation < 49.5:
-                suffix = "45,0"
-            elif 49.5 <= elevation < 57:
-                suffix = "54,0"
-            elif 57 <= elevation < 62.4:
-                suffix = "60,0"
-            elif 62.4 <= elevation < 69.9:
-                suffix = "64,8"        
-            elif 69.9 <= elevation < 82.5:
-                suffix = "75,0"
-            elif elevation >= 82.5:
-                suffix = "90,0"
-
-        azimuth = str(int(np.round(azimuth) % 360))
-        key = "azi_" + azimuth + ",0_ele_" + suffix
-
-        return key        
-    ################################################################################
 
 
 
@@ -441,9 +362,26 @@ class Renderer(nn.Module):
             RIR_early = F.fftconvolve(
                 self.source_response - torch.mean(self.source_response), RIR_early)[:self.RIR_length]
         '''
+
+        norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
+        incoming_listener_directions = -loc.end_directions_normalized/norms
+        listener_forward = np.array([0,1,0])
+        listener_left = np.array([-1,0,0])
+
+        #Make sure listener_forward and listener_left are orthogonal
+        assert np.abs(np.dot(listener_forward, listener_left)) < 0.01
+
+        listener_up = np.cross(listener_forward, listener_left)
+        listener_basis = np.stack((listener_forward, listener_left, listener_up), axis=-1)
+
+        #Compute Azimuths and Elevation
+        listener_coordinates = incoming_listener_directions @ listener_basis
+        azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
+        elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
+
         RIR_early_by_direction = dict()
         for i in range(n_paths):
-            key = get_direction_key(loc.end_directions[i])
+            key = get_direction_key(azimuths[i], elevations[i])
             if key in RIR_early_by_direction:
                 RIR_early_by_direction[key] += reflection_kernels[i]
             else:
@@ -490,7 +428,7 @@ class Renderer(nn.Module):
                 print("nan found - trying again")
                 early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
 
-        late = self.render_late(loc=loc)/24
+        late = self.render_late(loc=loc)/len(early) #########da migliorare, sarebbe da fare che viene equamente da tutte le direzioni
 
         # Blend early and late stage together using spline
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
@@ -682,3 +620,68 @@ def safe_log(x, eps=1e-9):
     """Prevents Taking the log of a non-positive number"""
     safe_x = torch.where(x <= eps, eps, x)
     return torch.log(safe_x)
+
+###########################################################################
+#gives the key to insert a path into a dictionary of RIR_by_direction
+#forward is [0,1,0], left is [-1,0,0]
+def get_direction_key(azimuth, elevation):
+
+    negative = elevation < 0
+    elevation = abs(elevation)
+    
+    if negative:
+        if elevation <= 7.5:
+            suffix = "0,0"
+        elif 7.5 <= elevation <  16.25:
+            suffix = "-15,0"
+        elif 16.25 <= elevation < 21.25:
+            suffix = "-17,5"
+        elif 21.25 <= elevation < 27.5:
+            suffix = "-25,0"
+        elif 27.5 <= elevation < 32.65:
+            suffix = "-30,0"
+        elif 32.65 <= elevation < 40.15:
+            suffix = "-35,3"
+        elif 40.15 <= elevation < 49.5:
+            suffix = "-45,0"
+        elif 49.5 <= elevation < 57:
+            suffix = "-54,0"
+        elif 57 <= elevation < 62.4:
+            suffix = "-60,0"
+        elif 62.4 <= elevation < 69.9:
+            suffix = "-64,8"        
+        elif 69.9 <= elevation < 78:
+            suffix = "-75,0"
+        elif elevation >= 78:
+            suffix = "-81,0"
+    else:
+        if elevation <= 7.5:
+            suffix = "0,0"
+        elif 7.5 <= elevation <  16.25:
+            suffix = "15,0"
+        elif 16.25 <= elevation < 21.25:
+            suffix = "17,5"
+        elif 21.25 <= elevation < 27.5:
+            suffix = "25,0"
+        elif 27.5 <= elevation < 32.65:
+            suffix = "30,0"
+        elif 32.65 <= elevation < 40.15:
+            suffix = "35,3"
+        elif 40.15 <= elevation < 49.5:
+            suffix = "45,0"
+        elif 49.5 <= elevation < 57:
+            suffix = "54,0"
+        elif 57 <= elevation < 62.4:
+            suffix = "60,0"
+        elif 62.4 <= elevation < 69.9:
+            suffix = "64,8"        
+        elif 69.9 <= elevation < 82.5:
+            suffix = "75,0"
+        elif elevation >= 82.5:
+            suffix = "90,0"
+
+    azimuth = str(int(np.round(azimuth) % 360))
+    key = "azi_" + azimuth + ",0_ele_" + suffix
+
+    return key        
+    ################################################################################
