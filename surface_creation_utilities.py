@@ -5,6 +5,18 @@ from scipy.spatial import Delaunay
 
 #method to create rectangular surfaces
 def get_surfaces_from_point_cloud(pcd_path):
+    """
+        Fits rectangular boxes into a point cloud
+
+        Parameters
+        ----------
+        pcd_path: String
+            path to the point cloud
+                  
+        Returns
+        -------
+        surfaces - np.array of G.Surface elements
+        """
     #loading point cloud and detecting planar patches (boxes with small z dimension)
     pcd = o3d.io.read_point_cloud(pcd_path)
     planes = pcd.detect_planar_patches(normal_variance_threshold_deg=60, coplanarity_deg=75, outlier_ratio=0.75, min_plane_edge_length=0.0, min_num_points=0, search_param=o3d.geometry.KDTreeSearchParamKNN(knn=30)) #si potrebbe fare fine tuning
@@ -32,11 +44,34 @@ def get_surfaces_from_point_cloud(pcd_path):
 #method to optimize surfaces to possibly have also triangular shape or generic parallelogram shape 
 #suggestion: to correctly optimize surfaces cut_impurity should be < 1/steps_per_side
 def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.05, steps_per_side = 11):
-    #cut_impurity is the percentage of points in the box that can be outside the optimized shape for it to be acceptable
-    #if more shapes are acceptable, the one with less area is preferred
-    #with equal area, the one with less impurity is accepted
 
-    #steps_per_side is the number of equally-spaced cutting points that are evaluated for each side
+    """
+        Fits rectangular boxes into a point cloud, then tries to reduce the surfaces removing two triangles from each rectangle,
+        creating parallelograms or triangles
+
+        triangles are created by taking as vertices two adjacent vertices of the rectangle and a point on the opposite side 
+
+        parallelograms are determined by two opposite vertices of the rectangle and, starting from these vertices, two equal-length
+        portions of opposite sides
+
+        if multiple parallelograms/triangles are acceptable, the one with less area is preferred.
+        with equal area, the one with less impurity is accepted
+
+        Parameters
+        ----------
+        pcd_path: String
+            path to the point cloud
+        cut_impurity: float
+            accepted percentage of points in the initial box that are exluded after the reshaping
+        steps_per_side: int
+            number of triangles and parallelograms attempts for each side
+                  
+
+        Returns
+        -------
+        surfaces - np.array of G.Surface elements
+        """
+
     
     #loading point cloud and detecting planar patches (boxes with small z dimension)
     pcd = o3d.io.read_point_cloud(pcd_path)
@@ -60,6 +95,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
         p2 = midpoints[1]
         points = [p0, p1, p2]
         #rectangle shape is the baseline
+        #best_surface is [parallelogram (boolean), surface defining vertices (np.array (3,3)), area (float)]
         best_surface = [True, points, np.linalg.norm(p1 - p0) * np.linalg.norm(p2 - p0)]
 
 
@@ -97,14 +133,16 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
                         else:
                             face_down_vertices.append(v2)
                             face_up_vertices.append(v1)
+
         
         face_up_vertices = sorted(face_up_vertices, key= lambda point: np.linalg.norm(point - face_down_vertices[0]))
         face_down_vertices = sorted(face_down_vertices, key= lambda point: np.linalg.norm(point - face_up_vertices[0]))
+        #in both cases 1 is the closest vertex to 0, 2 is the second closest, 3 is the opposite one
+
 
         cuts_to_try = np.linspace(0, 1, steps_per_side)
 
-
-        #trying to cut part of the rectangle to use triangle
+        #trying to cut part of the rectangle to use a triangle
         new_area = np.linalg.norm(face_down_vertices[0] - face_down_vertices[2]) * np.linalg.norm(face_down_vertices[1] - face_down_vertices[3]) * 0.5
         best_impurity = cut_impurity
         if (new_area < best_surface[2]): 
