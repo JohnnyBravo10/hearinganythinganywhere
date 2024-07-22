@@ -37,6 +37,7 @@ class Surface:
         self.p2 = points[2]
 
         n = np.cross(self.p1-self.p0 ,self.p2-self.p0)
+
         self.n = n/np.linalg.norm(n)
 
         self.parallelogram = parallelogram

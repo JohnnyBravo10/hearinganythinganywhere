@@ -42,7 +42,7 @@ def get_surfaces_from_point_cloud(pcd_path):
 
 
 #method to optimize surfaces to possibly have also triangular shape or generic parallelogram shape 
-#suggestion: to correctly optimize surfaces cut_impurity should be < 1/steps_per_side
+#suggestion: to correctly optimize surfaces cut_impurity should be < 1/(steps_per_side-1)
 def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.05, steps_per_side = 11):
 
     """
@@ -143,7 +143,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
         cuts_to_try = np.linspace(0, 1, steps_per_side)
 
         #trying to cut part of the rectangle to use a triangle
-        new_area = np.linalg.norm(face_down_vertices[0] - face_down_vertices[2]) * np.linalg.norm(face_down_vertices[1] - face_down_vertices[3]) * 0.5
+        new_area = np.linalg.norm(face_down_vertices[0] - face_down_vertices[2]) * np.linalg.norm(face_down_vertices[0] - face_down_vertices[1]) * 0.5
         best_impurity = cut_impurity
         if (new_area < best_surface[2]): 
         
@@ -199,7 +199,7 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
         for cut in cuts_to_try:
 
             best_impurity = cut_impurity
-            new_area = cut *  np.linalg.norm(face_down_vertices[0] - face_down_vertices[2]) * np.linalg.norm(face_down_vertices[1] - face_down_vertices[3])
+            new_area = cut *  np.linalg.norm(face_down_vertices[0] - face_down_vertices[2]) * np.linalg.norm(face_down_vertices[0] - face_down_vertices[1])
 
             parallelogram_optimization_found = False #flag to interrupt cycle if an acceptble parallelogram is found
 
