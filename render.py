@@ -8,6 +8,7 @@ import torchaudio.functional as F
 import trace1
 
 
+
 torch.set_default_dtype(torch.float32)
 
 class Renderer(nn.Module):
@@ -248,11 +249,13 @@ class Renderer(nn.Module):
         RIR_early = RIR_early*(self.sigmoid(self.decay)**self.times)
         return RIR_early
     
+    #############################################################################
 
-
+    angular_sensitivities_em64 = [{'frequency range': (20, 20000), 'angle': 15}]
+    #############################################################################
 
     ##############################################################################
-    def render_early_with_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+    def render_early_with_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64):
         """
         Renders the early-stage RIR
 
@@ -267,11 +270,13 @@ class Renderer(nn.Module):
             default is None which is (1,0,0)
         source_axis_2: np.array (3,)
             second axis specifying virtual source rotation,
-            default is None which is (0,1,0)        
+            default is None which is (0,1,0)
+        angular_sensitivities: list of dictionaries
+            list specifying the angular sensitivity (in degrees) for different ranges of frequencies        
 
         Returns
         -------
-        RIR_early_by_direction - dictionary of 24 (N,) tensor, early-stage RIR for each direction of arrival to the listener
+        RIR_early_by_direction - list of dictionaries (N,) for each frequency range, for each direction, a time domain early RIR is specified
         """
 
         """
@@ -379,18 +384,41 @@ class Renderer(nn.Module):
         azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
         elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
-        RIR_early_by_direction = dict()
+        RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length)
         for i in range(n_paths):
+            for interval in RIR_early_by_direction:
+                signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency range'][0], interval['frequency range'][1], self.fs)
+
+
+                a = np.array([response['direction'][0] for response in interval['directional responses']])
+                differences = np.array([abs(az-azimuths[i]) for az in a])
+                min_index = np.argmin(differences)
+                azimuth = a[min_index]
+
+                e = np.array([response['direction'][1] for response in interval['directional responses']])
+                differences = np.array([abs(el-elevations[i]) for el in e])
+                min_index = np.argmin(differences)
+                elevation = e[min_index]
+
+
+                for response in interval['directional responses']:
+                    if response['direction'][0] == azimuth:
+                        if response['direction'][1] == elevation:
+                            response['response'] += signal_to_add
+
+            ''' 
             key = get_direction_key(azimuths[i], elevations[i])
             if key in RIR_early_by_direction:
                 RIR_early_by_direction[key] += reflection_kernels[i]
             else:
                 RIR_early_by_direction[key] = reflection_kernels[i]
+            '''
 
-        for key in RIR_early_by_direction:
-            RIR_early_by_direction[key]= F.fftconvolve(
-                self.source_response - torch.mean(self.source_response), RIR_early_by_direction[key])[:self.RIR_length]
-            RIR_early_by_direction[key] = RIR_early_by_direction[key]*(self.sigmoid(self.decay)**self.times)
+        for interval in RIR_early_by_direction:
+            for r in interval['responses']:
+                r['response']= F.fftconvolve(
+                    self.source_response - torch.mean(self.source_response), r['response'])[:self.RIR_length]
+                r['response'] = r['response']*(self.sigmoid(self.decay)**self.times)
 
         return RIR_early_by_direction
     ##############################################################################
@@ -441,6 +469,7 @@ class Renderer(nn.Module):
 
     ###################################################################
 
+    
 
 class ListenerLocation():
     """
@@ -622,6 +651,31 @@ def safe_log(x, eps=1e-9):
     return torch.log(safe_x)
 
 ###########################################################################
+
+def initialize_directional_list(angular_sensitivities, signal_length):
+    frequency_range_list = []
+    for characteristic in angular_sensitivities:
+        frequency_dict = dict()
+        frequency_dict['frequency range'] = characteristic['frequency range']
+        directional_responses = []
+        used_angle = 180/(int(180/characteristic['angle']))
+        azimuths = np.arange(0, 360, used_angle)
+        elevations = np.arange(-90, 90+ used_angle, used_angle)
+        for azimuth in azimuths:
+            for elevation in elevations:
+                direction_dict = dict()
+                direction_dict['direction'] = [azimuth, elevation]
+                direction_dict['response'] = torch.zeros(signal_length)
+                directional_responses.append(direction_dict)
+
+        frequency_dict['directional responses'] = directional_responses
+        frequency_range_list.append(frequency_dict)
+
+    return frequency_range_list
+
+#############################################################################
+
+#####################################################################
 #gives the key to insert a path into a dictionary of RIR_by_direction
 #forward is [0,1,0], left is [-1,0,0]
 def get_direction_key(azimuth, elevation):
@@ -685,3 +739,20 @@ def get_direction_key(azimuth, elevation):
 
     return key        
     ################################################################################
+
+##################################################################
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyquist = 0.5 * fs
+    low = lowcut / nyquist
+    high = highcut / nyquist
+    b, a = scipy.signal.butter(order, [low, high], btype='band')
+    return b, a
+    
+###############################################################
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = scipy.signal.filter(b, a, data)
+    return y
+
+################################################################

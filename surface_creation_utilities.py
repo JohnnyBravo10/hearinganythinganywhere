@@ -4,7 +4,7 @@ import numpy as np
 from scipy.spatial import Delaunay
 
 #method to create rectangular surfaces
-def get_surfaces_from_point_cloud(pcd_path):
+def get_surfaces_from_point_cloud(pcd):
     """
         Fits rectangular boxes into a point cloud
 
@@ -17,9 +17,8 @@ def get_surfaces_from_point_cloud(pcd_path):
         -------
         surfaces - np.array of G.Surface elements
         """
-    #loading point cloud and detecting planar patches (boxes with small z dimension)
-    pcd = o3d.io.read_point_cloud(pcd_path)
-    planes = pcd.detect_planar_patches(normal_variance_threshold_deg=60, coplanarity_deg=75, outlier_ratio=0.75, min_plane_edge_length=0.0, min_num_points=0, search_param=o3d.geometry.KDTreeSearchParamKNN(knn=30)) #si potrebbe fare fine tuning
+    #detecting planar patches (boxes with small z dimension)
+    planes = pcd.detect_planar_patches(normal_variance_threshold_deg=60, coplanarity_deg=75, outlier_ratio=0.75, min_plane_edge_length=0.0, min_num_points=0, search_param=o3d.geometry.KDTreeSearchParamKNN(knn=20)) #si potrebbe fare fine tuning
     surfaces = []
     edges = []
     for i in range (8):
@@ -43,7 +42,7 @@ def get_surfaces_from_point_cloud(pcd_path):
 
 #method to optimize surfaces to possibly have also triangular shape or generic parallelogram shape 
 #suggestion: to correctly optimize surfaces cut_impurity should be < 1/(steps_per_side-1)
-def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.05, steps_per_side = 11):
+def get_surfaces_from_point_cloud_with_optimization(pcd, cut_impurity = 0.05, steps_per_side = 11):
 
     """
         Fits rectangular boxes into a point cloud, then tries to reduce the surfaces removing two triangles from each rectangle,
@@ -73,9 +72,8 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
         """
 
     
-    #loading point cloud and detecting planar patches (boxes with small z dimension)
-    pcd = o3d.io.read_point_cloud(pcd_path)
-    planes = pcd.detect_planar_patches(normal_variance_threshold_deg=60, coplanarity_deg=75, outlier_ratio=0.75, min_plane_edge_length=0.0, min_num_points=0, search_param=o3d.geometry.KDTreeSearchParamKNN(knn=30)) #si potrebbe fare fine tuning
+    #detecting planar patches (boxes with small z dimension)
+    planes = pcd.detect_planar_patches(normal_variance_threshold_deg=60, coplanarity_deg=75, outlier_ratio=0.75, min_plane_edge_length=0.0, min_num_points=0, search_param=o3d.geometry.KDTreeSearchParamKNN(knn=20)) #si potrebbe fare fine tuning
     surfaces = []
     edges = []
     for i in range (8):
@@ -150,27 +148,27 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
             for cut in cuts_to_try:
                 
                 #noise introduction is necessary to build Delauney mesh (point must not be complanar)
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_1 = Delaunay((np.array([face_down_vertices[0], face_up_vertices[0], cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2], face_down_vertices[1], face_up_vertices[1]])) + noise)
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2], face_down_vertices[2], face_up_vertices[2]]) + noise)
                 if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target):    
                     print("optimized with triangle type 1 with cut = ", cut)#######################
                     best_impurity = sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) / target
                     best_surface = [False, [np.mean([face_down_vertices[1], face_up_vertices[1]], axis=0),  np.mean([ cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2]], axis=0), np.mean([face_down_vertices[3], face_up_vertices[3]], axis=0)], new_area]
 
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_1 = Delaunay((np.array([face_down_vertices[0], face_up_vertices[0], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3], face_down_vertices[1], face_up_vertices[1]])) + noise)
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3], face_down_vertices[2], face_up_vertices[2]]) + noise)
                 if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target):    
                     print("optimized with triangle type 2 with cut = ", cut)#######################
                     best_impurity = sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) / target
                     best_surface = [False, [np.mean([face_down_vertices[0], face_up_vertices[0]], axis=0),  np.mean([ cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3]], axis=0), np.mean([face_down_vertices[2], face_up_vertices[2]], axis=0)], new_area]
                         
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_1 = Delaunay((np.array([face_down_vertices[0], face_up_vertices[0], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[0],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[0], face_down_vertices[2], face_up_vertices[2]])) + noise)
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[0],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[0], face_down_vertices[1], face_up_vertices[1]]) + noise)
                 if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target):    
                     print("optimized with triangle type 3 with cut = ", cut)#######################
@@ -178,9 +176,9 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
                     best_surface = [False, [np.mean([face_down_vertices[2], face_up_vertices[2]], axis=0),  np.mean([cut*face_down_vertices[1] + (1-cut)*face_down_vertices[0],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[0]], axis=0), np.mean([face_down_vertices[3], face_up_vertices[3]], axis=0)], new_area]
                     break
 
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_1 = Delaunay((np.array([face_down_vertices[0], face_up_vertices[0], cut*face_down_vertices[2] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[3], face_down_vertices[2], face_up_vertices[2]])) + noise)
-                noise = np.random.normal(scale=1e-12, size=(6, 3))
+                noise = np.random.normal(scale=1e-10, size=(6, 3))
                 hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[2] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[3], face_down_vertices[1], face_up_vertices[1]]) + noise)
                 if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target):    
                     print("optimized with triangle type 4 with cut = ", cut)#######################
@@ -203,9 +201,9 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
 
             parallelogram_optimization_found = False #flag to interrupt cycle if an acceptble parallelogram is found
 
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_1 = Delaunay((np.array([face_down_vertices[0], face_up_vertices[0], cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2], face_down_vertices[1], face_up_vertices[1]])) + noise)
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[3] + (1-cut)*face_down_vertices[1],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[1], face_down_vertices[2], face_up_vertices[2]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target) and new_area < best_surface[2]:  
                 print("optimized with parallelogram type 1 with cut = ", cut)#######################
@@ -213,9 +211,9 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
                 best_impurity = sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) / target
                 best_surface = [True, [np.mean([face_down_vertices[1], face_up_vertices[1]], axis=0),  np.mean([cut*face_down_vertices[0] + (1-cut)*face_down_vertices[2], cut*face_up_vertices[0] + (1-cut)*face_up_vertices[2]], axis=0), np.mean([cut*face_down_vertices[3] + (1-cut)*face_down_vertices[1],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[1]], axis=0)], new_area]
             
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_1 = Delaunay((np.array([face_down_vertices[2], face_up_vertices[2], cut*face_down_vertices[2] + (1-cut)*face_down_vertices[0],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[0], face_down_vertices[3], face_up_vertices[3]])) + noise)
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[1], face_up_vertices[1], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3], face_down_vertices[0], face_up_vertices[0]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target) and new_area < best_surface[2]:
                 print("optimized with parallelogram type 2 with cut = ", cut)#######################
@@ -223,9 +221,9 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
                 best_impurity = sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) / target
                 best_surface = [True, [np.mean([face_down_vertices[3], face_up_vertices[3]], axis=0),  np.mean([cut*face_down_vertices[2] + (1-cut)*face_down_vertices[0], cut*face_up_vertices[2] + (1-cut)*face_up_vertices[0]], axis=0), np.mean([cut*face_down_vertices[1] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[3]], axis=0)], new_area]            
 
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_1 = Delaunay((np.array([face_down_vertices[0], face_up_vertices[0], cut*face_down_vertices[0] + (1-cut)*face_down_vertices[1],cut*face_up_vertices[0] + (1-cut)*face_up_vertices[1], face_down_vertices[2], face_up_vertices[2]])) + noise)
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[3], face_up_vertices[3], cut*face_down_vertices[3] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[2], face_down_vertices[1], face_up_vertices[1]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target) and new_area < best_surface[2]:
                 print("optimized with parallelogram type 3 with cut = ", cut)#######################
@@ -233,9 +231,9 @@ def get_surfaces_from_point_cloud_with_optimization(pcd_path, cut_impurity = 0.0
                 best_impurity = sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) / target
                 best_surface = [True, [np.mean([face_down_vertices[1], face_up_vertices[1]], axis=0),  np.mean([cut*face_down_vertices[0] + (1-cut)*face_down_vertices[1], cut*face_up_vertices[0] + (1-cut)*face_up_vertices[1]], axis=0), np.mean([cut*face_down_vertices[3] + (1-cut)*face_down_vertices[2],cut*face_up_vertices[3] + (1-cut)*face_up_vertices[2]], axis=0)], new_area]
 
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_1 = Delaunay((np.array([face_down_vertices[1], face_up_vertices[1], cut*face_down_vertices[1] + (1-cut)*face_down_vertices[0],cut*face_up_vertices[1] + (1-cut)*face_up_vertices[0], face_down_vertices[3], face_up_vertices[3]])) + noise)
-            noise = np.random.normal(scale=1e-12, size=(6, 3))
+            noise = np.random.normal(scale=1e-10, size=(6, 3))
             hull_2 = Delaunay(([face_down_vertices[2], face_up_vertices[2], cut*face_down_vertices[2] + (1-cut)*face_down_vertices[3],cut*face_up_vertices[2] + (1-cut)*face_up_vertices[3], face_down_vertices[0], face_up_vertices[0]]) + noise)
             if (sum(1 for point in pcd.points if (hull_1.find_simplex(point) >= 0 or hull_2.find_simplex(point) >= 0) ) < best_impurity * target) and new_area < best_surface[2]:
                 print("optimized with parallelogram type 4 with cut = ", cut)#######################
