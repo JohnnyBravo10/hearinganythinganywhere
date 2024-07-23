@@ -446,17 +446,43 @@ class Renderer(nn.Module):
         RIR = late*self.spline + early*(1-self.spline)
         return RIR
     
-    ###################################################################
+    ###############################################################################
+
     def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
         """Renders the RIR."""
         early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
 
-        for early_directional_rir in early.values():
-            while torch.sum(torch.isnan(early_directional_rir)) > 0: # Check for numerical issues
-                print("nan found - trying again")
-                early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+        for interval in early:
+            for r in interval['responses']:
+                while torch.sum(torch.isnan(r['response'])) > 0: # Check for numerical issues
+                    print("nan found - trying again")
+                    early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        #DA FINIREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
 
         late = self.render_late(loc=loc)/len(early) #########da migliorare, sarebbe da fare che viene equamente da tutte le direzioni
+        '''
+        #QUALCOA DEL GENERE
+        for interval in RIR_early_by_direction:
+                signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency range'][0], interval['frequency range'][1], self.fs)
+
+
+                a = np.array([response['direction'][0] for response in interval['directional responses']])
+                differences = np.array([abs(az-azimuths[i]) for az in a])
+                min_index = np.argmin(differences)
+                azimuth = a[min_index]
+
+                e = np.array([response['direction'][1] for response in interval['directional responses']])
+                differences = np.array([abs(el-elevations[i]) for el in e])
+                min_index = np.argmin(differences)
+                elevation = e[min_index]
+
+
+                for response in interval['directional responses']:
+                    if response['direction'][0] == azimuth:
+                        if response['direction'][1] == elevation:
+                            response['response'] += signal_to_add
+        '''
 
         # Blend early and late stage together using spline
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
@@ -467,7 +493,7 @@ class Renderer(nn.Module):
  
         return RIR_by_direction
 
-    ###################################################################
+    ###################################################################################
 
     
 
@@ -738,7 +764,7 @@ def get_direction_key(azimuth, elevation):
     key = "azi_" + azimuth + ",0_ele_" + suffix
 
     return key        
-    ################################################################################
+################################################################################
 
 ##################################################################
 def butter_bandpass(lowcut, highcut, fs, order=5):
