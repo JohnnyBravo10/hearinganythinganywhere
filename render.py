@@ -251,7 +251,7 @@ class Renderer(nn.Module):
     
     #############################################################################
 
-    angular_sensitivities_em64 = [{'frequency range': (20, 20000), 'angle': 15}]
+    angular_sensitivities_em64 = [{'frequency_range': (20, 20000), 'angle': 15}]
     #############################################################################
 
     ##############################################################################
@@ -276,7 +276,7 @@ class Renderer(nn.Module):
 
         Returns
         -------
-        RIR_early_by_direction - list of dictionaries (N,) for each frequency range, for each direction, a time domain early RIR is specified
+        RIR_early_by_direction - list of dictionaries (N,) for each frequency_range, for each direction, a time domain early RIR is specified
         """
 
         """
@@ -387,7 +387,7 @@ class Renderer(nn.Module):
         RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length)
         for i in range(n_paths):
             for interval in RIR_early_by_direction:
-                signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency range'][0], interval['frequency range'][1], self.fs)
+                signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
 
 
                 a = np.array([response['direction'][0] for response in interval['directional responses']])
@@ -450,21 +450,34 @@ class Renderer(nn.Module):
 
     def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
         """Renders the RIR."""
-        early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+        frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
 
-        for interval in early:
+        for interval in frequency_list:
             for r in interval['responses']:
                 while torch.sum(torch.isnan(r['response'])) > 0: # Check for numerical issues
                     print("nan found - trying again")
-                    early = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+                    frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
 
-        #DA FINIREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+        late = self.render_late(loc=loc)
+        self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
 
+
+    
+        for interval in frequency_list:
+            signal_to_add = butter_bandpass_filter(late, interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
+            signal_to_add = signal_to_add/len(interval['responses'])
+            for r in interval['responses']:
+                r['response'] = signal_to_add*self.spline + r['response']*(1-self.spline)
+
+
+        return frequency_list
+
+    '''
         late = self.render_late(loc=loc)/len(early) #########da migliorare, sarebbe da fare che viene equamente da tutte le direzioni
-        '''
+        
         #QUALCOA DEL GENERE
         for interval in RIR_early_by_direction:
-                signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency range'][0], interval['frequency range'][1], self.fs)
+                signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency_range'][0], interval['frequency_range'][1], self.fs)
 
 
                 a = np.array([response['direction'][0] for response in interval['directional responses']])
@@ -482,7 +495,6 @@ class Renderer(nn.Module):
                     if response['direction'][0] == azimuth:
                         if response['direction'][1] == elevation:
                             response['response'] += signal_to_add
-        '''
 
         # Blend early and late stage together using spline
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
@@ -492,7 +504,7 @@ class Renderer(nn.Module):
             RIR_by_direction[key] = late*self.spline + early[key]*(1-self.spline)
  
         return RIR_by_direction
-
+    '''
     ###################################################################################
 
     
@@ -612,7 +624,7 @@ def get_interpolator(n_freq_target, freq_indices):
     return result
 
 def gen_counts(surface_indices, n_surfaces):
-    """Generates a (n_paths, n_surfaces) 0-1 mask indicating reflections"""#?????se riflette più di una volta sulla stessa superficie il valore sarà >1??
+    """Generates a (n_paths, n_surfaces) 0-1 mask indicating reflections"""#?????se riflette più di una volta sulla stessa superficie il valore sarà >1?? si
     n_reflections = len(surface_indices)
     result = torch.zeros(n_reflections, n_surfaces)
     for i in range(n_reflections):
@@ -682,7 +694,7 @@ def initialize_directional_list(angular_sensitivities, signal_length):
     frequency_range_list = []
     for characteristic in angular_sensitivities:
         frequency_dict = dict()
-        frequency_dict['frequency range'] = characteristic['frequency range']
+        frequency_dict['frequency_range'] = characteristic['frequency_range']
         directional_responses = []
         used_angle = 180/(int(180/characteristic['angle']))
         azimuths = np.arange(0, 360, used_angle)
@@ -767,7 +779,7 @@ def get_direction_key(azimuth, elevation):
 ################################################################################
 
 ##################################################################
-def butter_bandpass(lowcut, highcut, fs, order=5):
+def butter_bandpass(lowcut, highcut, fs=48000, order=5):
     nyquist = 0.5 * fs
     low = lowcut / nyquist
     high = highcut / nyquist
@@ -776,7 +788,7 @@ def butter_bandpass(lowcut, highcut, fs, order=5):
     
 ###############################################################
 
-def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+def butter_bandpass_filter(data, lowcut, highcut, fs=48000, order=5):
     b, a = butter_bandpass(lowcut, highcut, fs, order=order)
     y = scipy.signal.filter(b, a, data)
     return y

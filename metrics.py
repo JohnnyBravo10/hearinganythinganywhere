@@ -87,24 +87,27 @@ def training_loss_considering_directionality(x,y, cutoff =9000, eps=1e-6):
 
     Parameters
     ----------
-    x: dictionary of (up to) 24 first audio waveform(s) (one for each direction of arrival), torch.tensor
-    y: dictionary of (up to) 24 second audio waveform(s) (one for each direction of arrival), torch.tensor
+    x: list of dictionaries (one for each frequency_range), torch.tensor
+    y: lòist of dictionaries (one for each frequency_range), torch.tensor
     eps: added to the magnitude stft before taking the square root. Limits dynamic range of spectrogram.
 
     Returns
     -------
     loss: float tensor
+
     """
 
+    assert len(x) == len(y), "Frequncy ranges lists have different sizes"
     loss = 0
-    all_keys = set(x.keys()).union(y.keys())
-    for key in all_keys:
-        if key in x and key in y:
-            loss += training_loss((x[key]), y[key], cutoff=cutoff, eps=eps)
-        elif key not in x:
-            loss += training_loss(torch.zeros_like(y[key]), y[key], cutoff=cutoff, eps=eps)
-        elif key not in y:
-            loss += training_loss(x[key], torch.zeros_like(x[key]), cutoff=cutoff, eps=eps)
+    for interval in x:
+        matching_interval = next((i for i in y if i['frequency_range'] == interval['frequency_range']), None)
+
+        assert matching_interval != None, "Different frequency ranges"
+        assert len(interval['responses']) == len(matching_interval['responses']), "Different resolutions"
+        
+        for r in interval['responses']:
+            matching_r = next(i for i in matching_interval['responses'] if (i['direction'][0] == r['direction'][0] and i['direction'][1] == r['direction'][1]))
+            loss += training_loss(r['response'], matching_r['response'], cutoff=cutoff, eps=eps)
 
     return loss
 
