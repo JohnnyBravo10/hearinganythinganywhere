@@ -8,7 +8,6 @@ import torchaudio.functional as F
 import trace1
 
 
-
 torch.set_default_dtype(torch.float32)
 
 class Renderer(nn.Module):
@@ -57,7 +56,8 @@ class Renderer(nn.Module):
         super().__init__()
 
         # Device
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        #self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = "cpu"##################################
         self.nyq = fs/2
 
         # Arguments
@@ -384,10 +384,10 @@ class Renderer(nn.Module):
         azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
         elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
-        RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length)
+        RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length, device= self.device)
         for i in range(n_paths):
             for interval in RIR_early_by_direction:
-                signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
+                signal_to_add = apply_bandpass_filter(reflection_kernels[i], interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
 
 
                 a = np.array([response['direction'][0] for response in interval['responses']])
@@ -464,7 +464,7 @@ class Renderer(nn.Module):
 
     
         for interval in frequency_list:
-            signal_to_add = butter_bandpass_filter(late, interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
+            signal_to_add = apply_bandpass_filter(late, interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
             signal_to_add = signal_to_add/len(interval['responses'])
             for r in interval['responses']:
                 r['response'] = signal_to_add*self.spline + r['response']*(1-self.spline)
@@ -690,7 +690,7 @@ def safe_log(x, eps=1e-9):
 
 ###########################################################################
 
-def initialize_directional_list(angular_sensitivities, signal_length):
+def initialize_directional_list(angular_sensitivities, signal_length, device):
     frequency_range_list = []
     for characteristic in angular_sensitivities:
         frequency_dict = dict()
@@ -703,7 +703,7 @@ def initialize_directional_list(angular_sensitivities, signal_length):
             for elevation in elevations:
                 direction_dict = dict()
                 direction_dict['direction'] = [azimuth, elevation]
-                direction_dict['response'] = torch.zeros(signal_length)
+                direction_dict['response'] = torch.zeros(signal_length).to(device)
                 directional_responses.append(direction_dict)
 
         frequency_dict['responses'] = directional_responses
@@ -777,7 +777,7 @@ def get_direction_key(azimuth, elevation):
 
     return key        
 ################################################################################
-
+'''
 ##################################################################
 def butter_bandpass(lowcut, highcut, fs=48000, order=5):
     nyquist = 0.5 * fs
@@ -790,7 +790,47 @@ def butter_bandpass(lowcut, highcut, fs=48000, order=5):
 
 def butter_bandpass_filter(data, lowcut, highcut, fs=48000, order=5):
     b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-    y = torch.tensor(scipy.signal.lfilter(b, a, np.array(data.detach())))######################questo detach va bene??
+    y = torch.tensor(scipy.signal.lfilter(b, a, np.array(data.detach())))######################questo detach va bene?? 
     return y
-
+'''
 ################################################################
+
+def sinc_filter(cutoff, fs=48000, num_taps=513, device = 'cpu'):
+    """Create a sinc filter kernel."""
+    t = torch.arange(-(num_taps - 1) / 2, (num_taps - 1) / 2 + 1,  device=device)
+    t = t / fs
+    return torch.where(t == 0, 2 * cutoff, torch.sin(2 * np.pi * cutoff * t) / (np.pi * t))
+
+#################################################################
+
+def bandpass_filter(low_cutoff, high_cutoff, fs= 48000, num_taps=513, device = 'cpu'):
+    """Create a bandpass filter using sinc function."""
+    # Low-pass filter with cutoff = high_cutoff
+    hlp = sinc_filter(high_cutoff, fs, num_taps,  device=device)
+    # High-pass filter with cutoff = low_cutoff
+    hhp = sinc_filter(low_cutoff, fs, num_taps,  device=device)
+    # Bandpass is the difference between the two
+    hbp = hlp - hhp
+    # Apply a window function, e.g., Hamming window, to improve performance
+    window = torch.hamming_window(num_taps, periodic=False,  device=device)
+    hbp *= window
+    return hbp
+########################################################################
+
+def apply_bandpass_filter(signal, low_cutoff, high_cutoff, fs = 48000, num_taps=513):
+    """Creates a bandpass filter and applies it to a signal using convolution."""
+    device = signal.device
+    filter_kernel = bandpass_filter(low_cutoff, high_cutoff, fs, num_taps, device).to(device)###################forse ridondante
+    # Add a batch dimension and channel dimension if necessary
+    if signal.dim() == 1:
+        signal = signal.unsqueeze(0).unsqueeze(0)
+    elif signal.dim() == 2:
+        signal = signal.unsqueeze(1)
+
+    # Ensure the filter kernel has the right dimensions
+    filter_kernel = filter_kernel.unsqueeze(0).unsqueeze(0)
+    padding = (num_taps - 1) // 2
+    # Convolve the signal with the filter kernel
+    filtered_signal = nn.functional.conv1d(signal, filter_kernel, padding=padding)
+    return filtered_signal.squeeze()
+################################################################################

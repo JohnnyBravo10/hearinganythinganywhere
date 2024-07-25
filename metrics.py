@@ -4,6 +4,7 @@ import scipy.signal as signal
 
 torch.set_default_dtype(torch.float32)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = "cpu"#########################################################
 
 def safe_log(x, eps=1e-7):
     """
