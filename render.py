@@ -390,18 +390,18 @@ class Renderer(nn.Module):
                 signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
 
 
-                a = np.array([response['direction'][0] for response in interval['directional responses']])
+                a = np.array([response['direction'][0] for response in interval['responses']])
                 differences = np.array([abs(az-azimuths[i]) for az in a])
                 min_index = np.argmin(differences)
                 azimuth = a[min_index]
 
-                e = np.array([response['direction'][1] for response in interval['directional responses']])
+                e = np.array([response['direction'][1] for response in interval['responses']])
                 differences = np.array([abs(el-elevations[i]) for el in e])
                 min_index = np.argmin(differences)
                 elevation = e[min_index]
 
 
-                for response in interval['directional responses']:
+                for response in interval['responses']:
                     if response['direction'][0] == azimuth:
                         if response['direction'][1] == elevation:
                             response['response'] += signal_to_add
@@ -448,15 +448,15 @@ class Renderer(nn.Module):
     
     ###############################################################################
 
-    def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+    def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64):
         """Renders the RIR."""
-        frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+        frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivities= angular_sensitivities)
 
         for interval in frequency_list:
             for r in interval['responses']:
                 while torch.sum(torch.isnan(r['response'])) > 0: # Check for numerical issues
                     print("nan found - trying again")
-                    frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+                    frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivities= angular_sensitivities)
 
         late = self.render_late(loc=loc)
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
@@ -480,18 +480,18 @@ class Renderer(nn.Module):
                 signal_to_add = butter_bandpass_filter(reflection_kernels[i], interval['frequency_range'][0], interval['frequency_range'][1], self.fs)
 
 
-                a = np.array([response['direction'][0] for response in interval['directional responses']])
+                a = np.array([response['direction'][0] for response in interval['responses']])
                 differences = np.array([abs(az-azimuths[i]) for az in a])
                 min_index = np.argmin(differences)
                 azimuth = a[min_index]
 
-                e = np.array([response['direction'][1] for response in interval['directional responses']])
+                e = np.array([response['direction'][1] for response in interval['responses']])
                 differences = np.array([abs(el-elevations[i]) for el in e])
                 min_index = np.argmin(differences)
                 elevation = e[min_index]
 
 
-                for response in interval['directional responses']:
+                for response in interval['responses']:
                     if response['direction'][0] == azimuth:
                         if response['direction'][1] == elevation:
                             response['response'] += signal_to_add
@@ -706,7 +706,7 @@ def initialize_directional_list(angular_sensitivities, signal_length):
                 direction_dict['response'] = torch.zeros(signal_length)
                 directional_responses.append(direction_dict)
 
-        frequency_dict['directional responses'] = directional_responses
+        frequency_dict['responses'] = directional_responses
         frequency_range_list.append(frequency_dict)
 
     return frequency_range_list
@@ -790,7 +790,7 @@ def butter_bandpass(lowcut, highcut, fs=48000, order=5):
 
 def butter_bandpass_filter(data, lowcut, highcut, fs=48000, order=5):
     b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-    y = scipy.signal.filter(b, a, data)
+    y = torch.tensor(scipy.signal.lfilter(b, a, np.array(data.detach())))######################questo detach va bene??
     return y
 
 ################################################################
