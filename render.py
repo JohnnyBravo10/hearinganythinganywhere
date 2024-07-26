@@ -391,7 +391,7 @@ class Renderer(nn.Module):
 
 
                 a = np.array([response['direction'][0] for response in interval['responses']])
-                differences = np.array([abs(az-azimuths[i]) for az in a])
+                differences = np.array([min(abs(az-azimuths[i]),abs(360-abs(az-azimuths[i]))) for az in a])
                 min_index = np.argmin(differences)
                 azimuth = a[min_index]
 
