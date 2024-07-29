@@ -56,8 +56,8 @@ class Renderer(nn.Module):
         super().__init__()
 
         # Device
-        #self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.device = "cpu"##################################
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        #self.device = "cpu" 
         self.nyq = fs/2
 
         # Arguments
@@ -249,13 +249,12 @@ class Renderer(nn.Module):
         RIR_early = RIR_early*(self.sigmoid(self.decay)**self.times)
         return RIR_early
     
-    #############################################################################
-
-    angular_sensitivities_em64 = [{'frequency_range': (20, 20000), 'angle': 15}]
-    #############################################################################
+    ######################################
+    angular_sensitivities_em64=[{'frequency_range': (20, 20000), 'angle': 15}]
+    ######################################
 
     ##############################################################################
-    def render_early_with_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64):
+    def render_early_with_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """
         Renders the early-stage RIR
 
@@ -370,8 +369,7 @@ class Renderer(nn.Module):
 
         norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
         incoming_listener_directions = -loc.end_directions_normalized/norms
-        listener_forward = np.array([0,1,0])
-        listener_left = np.array([-1,0,0])
+        
 
         #Make sure listener_forward and listener_left are orthogonal
         assert np.abs(np.dot(listener_forward, listener_left)) < 0.01
@@ -391,7 +389,7 @@ class Renderer(nn.Module):
 
 
                 a = np.array([response['direction'][0] for response in interval['responses']])
-                differences = np.array([abs(az-azimuths[i]) for az in a])
+                differences = np.array([abs((az-azimuths[i])) for az in a])###############da sistemare cosa dei 360°
                 min_index = np.argmin(differences)
                 azimuth = a[min_index]
 
@@ -446,17 +444,22 @@ class Renderer(nn.Module):
         RIR = late*self.spline + early*(1-self.spline)
         return RIR
     
+    #############################################################################
+
+    angular_sensitivities_em64 = [{'frequency_range': (20, 20000), 'angle': 15}]
+    #############################################################################
+    
     ###############################################################################
 
-    def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64):
+    def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """Renders the RIR."""
-        frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivities= angular_sensitivities)
+        frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivities= angular_sensitivities, listener_forward=listener_forward, listener_left=listener_left)
 
         for interval in frequency_list:
             for r in interval['responses']:
                 while torch.sum(torch.isnan(r['response'])) > 0: # Check for numerical issues
                     print("nan found - trying again")
-                    frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivities= angular_sensitivities)
+                    frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivities= angular_sensitivities, listener_forward=listener_forward, listener_left=listener_left)
 
         late = self.render_late(loc=loc)
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
@@ -713,6 +716,7 @@ def initialize_directional_list(angular_sensitivities, signal_length, device):
 
 #############################################################################
 
+'''
 #####################################################################
 #gives the key to insert a path into a dictionary of RIR_by_direction
 #forward is [0,1,0], left is [-1,0,0]
@@ -778,6 +782,7 @@ def get_direction_key(azimuth, elevation):
     return key        
 ################################################################################
 '''
+'''
 ##################################################################
 def butter_bandpass(lowcut, highcut, fs=48000, order=5):
     nyquist = 0.5 * fs
@@ -834,3 +839,4 @@ def apply_bandpass_filter(signal, low_cutoff, high_cutoff, fs = 48000, num_taps=
     filtered_signal = nn.functional.conv1d(signal, filter_kernel, padding=padding)
     return filtered_signal.squeeze()
 ################################################################################
+
