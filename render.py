@@ -164,7 +164,7 @@ class Renderer(nn.Module):
         """
         n_paths = loc.delays.shape[0]
         energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
-        amplitudes = torch.sqrt(energy_coeffs)
+        amplitudes = torch.sqrt(energy_coeffs).to(self.device)
 
         # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
         # path reflects off surface
@@ -250,7 +250,7 @@ class Renderer(nn.Module):
         return RIR_early
     
     ######################################
-    angular_sensitivities_em64=[{'frequency_range': (20, 20000), 'angle': 15}]
+    angular_sensitivities_em64=[{'frequency_range': (20, 20000), 'angle': 22.5}]
     ######################################
 
     ##############################################################################
@@ -444,11 +444,6 @@ class Renderer(nn.Module):
         RIR = late*self.spline + early*(1-self.spline)
         return RIR
     
-    #############################################################################
-
-    angular_sensitivities_em64 = [{'frequency_range': (20, 20000), 'angle': 15}]
-    #############################################################################
-    
     ###############################################################################
 
     def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
@@ -467,8 +462,7 @@ class Renderer(nn.Module):
 
     
         for interval in frequency_list:
-            signal_to_add = apply_bandpass_filter(late, interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
-            signal_to_add = signal_to_add/len(interval['responses'])
+            signal_to_add = apply_bandpass_filter(late, interval['frequency_range'][0], interval['frequency_range'][1], fs=self.nyq * 2) / len(interval['responses'])
             for r in interval['responses']:
                 r['response'] = signal_to_add*self.spline + r['response']*(1-self.spline)
 

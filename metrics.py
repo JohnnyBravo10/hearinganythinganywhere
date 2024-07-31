@@ -79,6 +79,31 @@ def training_loss(x,y,cutoff=9000, eps=1e-6):
     tiny_hop_loss = L1_and_Log(x[...,:cutoff], y[...,:cutoff], n_fft=256, eps=eps, hop_length=1)
     return loss1 + loss2 + loss3 + loss4 + tiny_hop_loss
 
+#########################################################à
+def simplified_loss(x,y,cutoff=9000, eps=1e-6):
+    """
+    Training Loss
+
+    Computes spectral L1 and log spectral L1 loss
+
+    Parameters
+    ----------
+    x: first audio waveform(s), torch.tensor
+    y: second audio waveform(s), torch.tensor
+    eps: added to the magnitude stft before taking the square root. Limits dynamic range of spectrogram.
+
+    Returns
+    -------
+    loss: float tensor
+    """
+    loss1 = L1_and_Log(x,y, n_fft=512, eps=eps)
+    loss4 = L1_and_Log(x,y, n_fft=4096, eps=eps)
+
+    torch.cuda.empty_cache()###################
+    
+    return loss1 + loss4 
+###########################################################
+
 ###########################################################
 def training_loss_considering_directionality(x,y, cutoff =9000, eps=1e-6):
     """
@@ -108,7 +133,8 @@ def training_loss_considering_directionality(x,y, cutoff =9000, eps=1e-6):
         
         for r in interval['responses']:
             matching_r = next(i for i in matching_interval['responses'] if (i['direction'][0] == r['direction'][0] and i['direction'][1] == r['direction'][1]))
-            loss += training_loss(r['response'], matching_r['response'], cutoff=cutoff, eps=eps)
+            loss += simplified_loss(r['response'], matching_r['response'], cutoff=cutoff, eps=eps)
+
 
     return loss
 
