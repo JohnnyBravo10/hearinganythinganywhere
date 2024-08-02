@@ -250,7 +250,7 @@ class Renderer(nn.Module):
         return RIR_early
     
     ######################################
-    angular_sensitivities_em64=[{'frequency_range': (20, 20000), 'angle': 22.5}]
+    angular_sensitivities_em64=[{'frequency_range': (20, 1000), 'angle': 90}, {'frequency_range': (1000, 5000), 'angle': 60}, {'frequency_range': (5000, 20000), 'angle': 45}]
     ######################################
 
     ##############################################################################
@@ -283,7 +283,7 @@ class Renderer(nn.Module):
         """
         n_paths = loc.delays.shape[0]
         energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
-        amplitudes = torch.sqrt(energy_coeffs)
+        amplitudes = torch.sqrt(energy_coeffs).to(self.device)################
 
         # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
         # path reflects off surface
@@ -384,33 +384,43 @@ class Renderer(nn.Module):
 
         RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length, device= self.device)
         for i in range(n_paths):
-            for interval in RIR_early_by_direction:
-                signal_to_add = apply_bandpass_filter(reflection_kernels[i], interval['frequency_range'][0], interval['frequency_range'][1], fs = self.nyq * 2)
+            for j in range(len(RIR_early_by_direction)):
+                '''
+                signal_to_add = apply_bandpass_filter(reflection_kernels[i], RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1], fs = self.nyq * 2)
 
-
-                a = np.array([response['direction'][0] for response in interval['responses']])
-                differences = np.array([min(abs(az-azimuths[i]),abs(360-abs(az-azimuths[i]))) for az in a])
-                min_index = np.argmin(differences)
-                azimuth = a[min_index]
 
                 e = np.array([response['direction'][1] for response in interval['responses']])
                 differences = np.array([abs(el-elevations[i]) for el in e])
                 min_index = np.argmin(differences)
                 elevation = e[min_index]
 
+                if (elevation == -90 or elevation == 90):
+                    azimuth = 0
+                else:
+                    a = np.array([response['direction'][0] for response in interval['responses']])
+                    differences = np.array([min(abs(az-azimuths[i]),abs(360-abs(az-azimuths[i]))) for az in a])
+                    min_index = np.argmin(differences)
+                    azimuth = a[min_index]
+
 
                 for response in interval['responses']:
                     if response['direction'][0] == azimuth:
                         if response['direction'][1] == elevation:
                             response['response'] += signal_to_add
-
-            ''' 
-            key = get_direction_key(azimuths[i], elevations[i])
-            if key in RIR_early_by_direction:
-                RIR_early_by_direction[key] += reflection_kernels[i]
-            else:
-                RIR_early_by_direction[key] = reflection_kernels[i]
-            '''
+                '''
+                #
+                print("rtange considerato", RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1])
+                print("direzione di arrivo", azimuths[i], elevations[i])
+                
+                beampattern_weights = calculate_weights(azimuths[i], elevations[i], 6)#int(180/angular_sensitivities[j]['angle']))
+                signal_to_add = apply_bandpass_filter(reflection_kernels[i], RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1], fs = self.nyq * 2)
+                pattern_max = beam_pattern(azimuths[i], elevations[i], beampattern_weights, 6)#int(180/angular_sensitivities[j]['angle']))
+                
+                for response in RIR_early_by_direction[j]['responses']:
+                    response['response'] += signal_to_add * beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, 6) / pattern_max#int(180/angular_sensitivities[j]['angle'])) / pattern_max
+                    print("direzioni considerate", response['direction'][0], response['direction'][1],)
+                    print("attenuazione", beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, 6) / pattern_max )#int(180/angular_sensitivities[j]['angle'])) / pattern_max)
+                #
 
         for interval in RIR_early_by_direction:
             for r in interval['responses']:
@@ -696,12 +706,18 @@ def initialize_directional_list(angular_sensitivities, signal_length, device):
         used_angle = 180/(int(180/characteristic['angle']))
         azimuths = np.arange(0, 360, used_angle)
         elevations = np.arange(-90, 90+ used_angle, used_angle)
-        for azimuth in azimuths:
-            for elevation in elevations:
+        for elevation in elevations:
+            if (elevation == -90 or elevation == 90):
                 direction_dict = dict()
-                direction_dict['direction'] = [azimuth, elevation]
+                direction_dict['direction'] = [0, elevation]#-90 and +90 elevations are considered having azimuth=0
                 direction_dict['response'] = torch.zeros(signal_length).to(device)
                 directional_responses.append(direction_dict)
+            else:   
+                for azimuth in azimuths:
+                    direction_dict = dict()
+                    direction_dict['direction'] = [azimuth, elevation]
+                    direction_dict['response'] = torch.zeros(signal_length).to(device)
+                    directional_responses.append(direction_dict)
 
         frequency_dict['responses'] = directional_responses
         frequency_range_list.append(frequency_dict)
@@ -834,3 +850,55 @@ def apply_bandpass_filter(signal, low_cutoff, high_cutoff, fs = 48000, num_taps=
     return filtered_signal.squeeze()
 ################################################################################
 
+#tentativo usare beam pattern per contributi direzionali di ogni path
+
+###########################################################
+from scipy.special import sph_harm
+
+def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
+    """
+    Calcola i pesi W_{lm} per la direzione di arrivo del segnale.
+    
+    :param direction: Tuple (theta_0, phi_0) per la direzione di arrivo del segnale.
+    :param l_max: Ordine massimo delle armoniche sferiche da considerare.
+    :return: Dizionario di pesi W_{lm}.
+    """
+    phi_0 = azimuth_incoming * 2 * np.pi/360
+    theta_0 = elevation_incoming * 2 * np.pi/360
+
+
+    weights = {}
+    
+    for l in range(l_max + 1):
+        for m in range(-l, l + 1):
+            Y_lm = sph_harm(m, l, phi_0, theta_0)
+            weights[(l, m)] = Y_lm
+    
+    return weights
+#############################################################
+
+############################################################
+def beam_pattern(azimuth, elevation, weights, l_max):
+    """
+    Calcola il beam pattern per una direzione specifica.
+    
+    :param theta: Angolo zenitale della direzione (in radianti).
+    :param phi: Angolo azimutale della direzione (in radianti).
+    :param weights: Dizionario di pesi W_{lm}.
+    :param l_max: Ordine massimo delle armoniche sferiche considerate.
+    :return: Ampiezza del beam pattern nella direzione specificata.
+    """
+    phi = azimuth * 2 * np.pi/360
+    theta = elevation * 2 * np.pi/360
+
+    pattern = 0.0
+    
+    for l in range(l_max + 1):
+        for m in range(-l, l + 1):
+            Y_lm = sph_harm(m, l, phi, theta)
+            pattern += weights[(l, m)] * Y_lm
+
+    
+    return np.abs(pattern)
+
+##################################################
