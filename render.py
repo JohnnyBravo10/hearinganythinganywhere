@@ -859,13 +859,14 @@ def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
     """
     Calcola i pesi W_{lm} per la direzione di arrivo del segnale.
     
-    :param direction: Tuple (theta_0, phi_0) per la direzione di arrivo del segnale.
+    :param azimuth_incoming: Angolo azimutale della direzione di arrivo (in gradi).
+    :param elevation_incoming: Angolo zenitale della direzione di arrivo (in gradi).
     :param l_max: Ordine massimo delle armoniche sferiche da considerare.
     :return: Dizionario di pesi W_{lm}.
     """
-    phi_0 = azimuth_incoming * 2 * np.pi/360
-    theta_0 = elevation_incoming * 2 * np.pi/360
-
+    azimuth_incoming = - azimuth_incoming
+    phi_0 = np.deg2rad(azimuth_incoming)
+    theta_0 = np.deg2rad(90 - elevation_incoming)
 
     weights = {}
     
@@ -875,21 +876,23 @@ def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
             weights[(l, m)] = Y_lm
     
     return weights
-#############################################################
 
-############################################################
+#################################################
+
+###############################################
 def beam_pattern(azimuth, elevation, weights, l_max):
     """
     Calcola il beam pattern per una direzione specifica.
     
-    :param theta: Angolo zenitale della direzione (in radianti).
-    :param phi: Angolo azimutale della direzione (in radianti).
+    :param azimuth: Angolo azimutale della direzione (in gradi).
+    :param elevation: Angolo zenitale della direzione (in gradi).
     :param weights: Dizionario di pesi W_{lm}.
     :param l_max: Ordine massimo delle armoniche sferiche considerate.
     :return: Ampiezza del beam pattern nella direzione specificata.
     """
-    phi = azimuth * 2 * np.pi/360
-    theta = elevation * 2 * np.pi/360
+    azimuth=azimuth
+    phi = np.deg2rad(azimuth)
+    theta = np.deg2rad(90 - elevation)
 
     pattern = 0.0
     
@@ -897,8 +900,7 @@ def beam_pattern(azimuth, elevation, weights, l_max):
         for m in range(-l, l + 1):
             Y_lm = sph_harm(m, l, phi, theta)
             pattern += weights[(l, m)] * Y_lm
-
     
     return np.abs(pattern)
 
-##################################################
+#####################################################
