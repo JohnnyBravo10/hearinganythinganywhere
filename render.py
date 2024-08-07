@@ -409,17 +409,17 @@ class Renderer(nn.Module):
                             response['response'] += signal_to_add
                 '''
                 #
-                print("rtange considerato", RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1])
-                print("direzione di arrivo", azimuths[i], elevations[i])
+                #print("rtange considerato", RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1])
+                #print("direzione di arrivo", azimuths[i], elevations[i])
                 
-                beampattern_weights = calculate_weights(azimuths[i], elevations[i], 6)#int(180/angular_sensitivities[j]['angle']))
+                beampattern_weights = calculate_weights(azimuths[i], elevations[i], int(180/angular_sensitivities[j]['angle']))
                 signal_to_add = apply_bandpass_filter(reflection_kernels[i], RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1], fs = self.nyq * 2)
-                pattern_max = beam_pattern(azimuths[i], elevations[i], beampattern_weights, 6)#int(180/angular_sensitivities[j]['angle']))
+                pattern_max = beam_pattern(azimuths[i], elevations[i], beampattern_weights, int(180/angular_sensitivities[j]['angle']))
                 
                 for response in RIR_early_by_direction[j]['responses']:
-                    response['response'] += signal_to_add * beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, 6) / pattern_max#int(180/angular_sensitivities[j]['angle'])) / pattern_max
-                    print("direzioni considerate", response['direction'][0], response['direction'][1],)
-                    print("attenuazione", beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, 6) / pattern_max )#int(180/angular_sensitivities[j]['angle'])) / pattern_max)
+                    response['response'] += signal_to_add * beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max
+                    #print("direzioni considerate", response['direction'][0], response['direction'][1],)
+                    #print("attenuazione", beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max)
                 #
 
         for interval in RIR_early_by_direction:
@@ -857,12 +857,12 @@ from scipy.special import sph_harm
 
 def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
     """
-    Calcola i pesi W_{lm} per la direzione di arrivo del segnale.
+    Compute the weights W_{lm} for the direction of arrival of the signal.
     
-    :param azimuth_incoming: Angolo azimutale della direzione di arrivo (in gradi).
-    :param elevation_incoming: Angolo zenitale della direzione di arrivo (in gradi).
-    :param l_max: Ordine massimo delle armoniche sferiche da considerare.
-    :return: Dizionario di pesi W_{lm}.
+    :param azimuth_incoming: Azimuth angle of the direction of arrival (in degrees).
+    :param elevation_incoming: Elevation angle of the direction of arrival (in degrees).
+    :param l_max: Maximum order to consider for the spheric harmonics.
+    :return: Dictionary of weights W_{lm}.
     """
     azimuth_incoming = - azimuth_incoming
     phi_0 = np.deg2rad(azimuth_incoming)
@@ -882,13 +882,13 @@ def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
 ###############################################
 def beam_pattern(azimuth, elevation, weights, l_max):
     """
-    Calcola il beam pattern per una direzione specifica.
+    Compute beam pattern in a specific direction.
     
-    :param azimuth: Angolo azimutale della direzione (in gradi).
-    :param elevation: Angolo zenitale della direzione (in gradi).
-    :param weights: Dizionario di pesi W_{lm}.
-    :param l_max: Ordine massimo delle armoniche sferiche considerate.
-    :return: Ampiezza del beam pattern nella direzione specificata.
+    :param azimuth: Azimuth angle (in degrees).
+    :param elevation: Elevation angle (in degrees).
+    :param weights: Dictionary of weights W_{lm}.
+    :param l_max: Maximum order of the considered spheric harmonics.
+    :return: Amplitude of the beam pattern in the specified direction.
     """
     azimuth=azimuth
     phi = np.deg2rad(azimuth)
