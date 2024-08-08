@@ -430,6 +430,201 @@ class Renderer(nn.Module):
 
         return RIR_early_by_direction
     ##############################################################################
+
+    ##############################################################################
+    def render_early_with_learned_beampatterns(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+        """
+        Renders the early-stage RIR
+
+        Parameters
+        ----------
+        loc: ListenerLocation
+            characterizes the location at which we render the early-stage RIR
+        hrirs: np.array (n_paths x 2 x h_rir_length)
+            head related IRs for each reflection path's direction
+        source_axis_1: np.array (3,)
+            first axis specifying virtual source rotation,
+            default is None which is (1,0,0)
+        source_axis_2: np.array (3,)
+            second axis specifying virtual source rotation,
+            default is None which is (0,1,0)
+        angular_sensitivities: list of dictionaries
+            list specifying the angular sensitivity (in degrees) for different ranges of frequencies        
+
+        Returns
+        -------
+        RIR_early_by_direction - list of dictionaries (N,) for each frequency_range, for each direction, a time domain early RIR is specified
+        """
+
+        """
+        Computing Reflection Response
+        """
+        n_paths = loc.delays.shape[0]
+        energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
+        amplitudes = torch.sqrt(energy_coeffs).to(self.device)################
+
+        # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
+        # path reflects off surface
+        mask = torch.stack((loc.reflection_mask, loc.transmission_mask), dim=-1).unsqueeze(-1).to(self.device)
+        
+        # gains_profile is n_paths * n_surfaces * 2 * num_frequencies * 1
+        if not self.model_transmission:  
+            paths_without_transmissions = torch.sum(loc.transmission_mask, dim=-1) == 0
+        gains_profile = (amplitudes[:,0:2,:].unsqueeze(0)**mask).unsqueeze(-1)
+
+        # reflection_frequency_response = n_paths * n_freq_samples
+        reflection_frequency_response = torch.prod(torch.prod(
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########??????perché moltiplica coefficiente riflessione e assorbimento?
+
+
+        """
+        Computing Directivity Response
+        """
+        start_directions_normalized = loc.start_directions_normalized.to(self.device)
+
+        # If there is speaker rotation
+        if source_axis_1 is not None and source_axis_2 is not None:
+            source_axis_3 = np.cross(source_axis_1 ,source_axis_2)
+            source_basis = np.stack( (source_axis_1, source_axis_2, source_axis_3), axis=-1)
+            start_directions_normalized_transformed = (
+                start_directions_normalized @ torch.Tensor(source_basis).double().cuda())
+            dots =  start_directions_normalized_transformed @ (self.sphere_points).T
+        else:
+            dots = start_directions_normalized @ (self.sphere_points).T
+
+        
+        # Normalized weights for each directivity bin
+        weights = torch.exp(-self.sharpness*(1-dots))
+        weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
+        weighted = weights.unsqueeze(-1) * self.directivity_sphere
+        directivity_profile = torch.sum(weighted, dim=1)
+        directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
+        directivity_amplitude_response = torch.exp(directivity_response)
+
+        """
+        Computing overall frequency response, minimum phase transform
+        """
+        frequency_response = directivity_amplitude_response*reflection_frequency_response
+
+        #qualcosa del tipo:
+        #for frequency in frequency_response: 
+            
+
+
+
+
+
+
+
+
+
+
+
+
+        '''
+
+        phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
+        fx2 = frequency_response*torch.exp(1j*phases)
+        out_full = torch.fft.irfft(fx2)
+        out = out_full[...,:self.filter_length] * self.window
+        '''
+
+        """
+        Compiling RIR
+        """
+        reflection_kernels = torch.zeros(n_paths, self.RIR_length).to(self.device)
+    
+        if self.toa_perturb:
+            noises = 7*torch.randn(n_paths, 1).to(self.device)
+
+        for i in range(n_paths):            
+            if self.toa_perturb:
+                delay = loc.delays[i] + torch.round(noises[i]).int()
+            else:
+                delay = loc.delays[i]
+
+            # factor/delay gives us the 1/(radius in meters)
+            factor = (2*self.nyq)/343
+            reflection_kernels[i, delay:delay+out.shape[-1]] = out[i]*(factor/(delay))
+
+            if not self.model_transmission:
+                reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
+        
+        if hrirs is not None:
+            reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
+            reflection_kernels = F.fftconvolve(reflection_kernels, hrirs.to(self.device)) # hrirs are n_paths x 2 x length
+        '''
+            RIR_early = torch.sum(reflection_kernels, axis=0) 
+            RIR_early = F.fftconvolve(
+                (self.source_response - torch.mean(self.source_response)).view(1,-1), RIR_early)[...,:self.RIR_length]
+        else:
+            RIR_early = torch.sum(reflection_kernels, axis=0)
+            RIR_early = F.fftconvolve(
+                self.source_response - torch.mean(self.source_response), RIR_early)[:self.RIR_length]
+        '''
+
+        norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
+        incoming_listener_directions = -loc.end_directions_normalized/norms
+        
+
+        #Make sure listener_forward and listener_left are orthogonal
+        assert np.abs(np.dot(listener_forward, listener_left)) < 0.01
+
+        listener_up = np.cross(listener_forward, listener_left)
+        listener_basis = np.stack((listener_forward, listener_left, listener_up), axis=-1)
+
+        #Compute Azimuths and Elevation
+        listener_coordinates = incoming_listener_directions @ listener_basis
+        azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
+        elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
+
+        RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length, device= self.device)
+        for i in range(n_paths):
+            for j in range(len(RIR_early_by_direction)):
+                '''
+                signal_to_add = apply_bandpass_filter(reflection_kernels[i], RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1], fs = self.nyq * 2)
+
+
+                e = np.array([response['direction'][1] for response in interval['responses']])
+                differences = np.array([abs(el-elevations[i]) for el in e])
+                min_index = np.argmin(differences)
+                elevation = e[min_index]
+
+                if (elevation == -90 or elevation == 90):
+                    azimuth = 0
+                else:
+                    a = np.array([response['direction'][0] for response in interval['responses']])
+                    differences = np.array([min(abs(az-azimuths[i]),abs(360-abs(az-azimuths[i]))) for az in a])
+                    min_index = np.argmin(differences)
+                    azimuth = a[min_index]
+
+
+                for response in interval['responses']:
+                    if response['direction'][0] == azimuth:
+                        if response['direction'][1] == elevation:
+                            response['response'] += signal_to_add
+                '''
+                #
+                #print("rtange considerato", RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1])
+                #print("direzione di arrivo", azimuths[i], elevations[i])
+                
+                beampattern_weights = calculate_weights(azimuths[i], elevations[i], int(180/angular_sensitivities[j]['angle']))
+                signal_to_add = apply_bandpass_filter(reflection_kernels[i], RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1], fs = self.nyq * 2)
+                pattern_max = beam_pattern(azimuths[i], elevations[i], beampattern_weights, int(180/angular_sensitivities[j]['angle']))
+                
+                for response in RIR_early_by_direction[j]['responses']:
+                    response['response'] += signal_to_add * beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max
+                    #print("direzioni considerate", response['direction'][0], response['direction'][1],)
+                    #print("attenuazione", beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max)
+                #
+
+        for interval in RIR_early_by_direction:
+            for r in interval['responses']:
+                r['response']= F.fftconvolve(
+                    self.source_response - torch.mean(self.source_response), r['response'])[:self.RIR_length]
+                r['response'] = r['response']*(self.sigmoid(self.decay)**self.times)
+
+        return RIR_early_by_direction
         
     def render_late(self, loc):    
         """Renders the late-stage RIR. Future work may implement other ways of modeling the late-stage."""    
@@ -879,7 +1074,7 @@ def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
 
 #################################################
 
-###############################################
+#################################################
 def beam_pattern(azimuth, elevation, weights, l_max):
     """
     Compute beam pattern in a specific direction.
