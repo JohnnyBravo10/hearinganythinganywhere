@@ -329,7 +329,7 @@ class Renderer(nn.Module):
 
         
         # Normalized weights for each directivity bin
-        weights = torch.exp(-self.sharpness*(1-dots))
+        weights = torch.exp(-self.sharpness*(1-dots)).to(self.device)################
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
         weighted = weights.unsqueeze(-1) * self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
@@ -508,9 +508,9 @@ class Renderer(nn.Module):
 
         
         # Normalized weights for each directivity bin
-        weights = torch.exp(-self.sharpness*(1-dots))
+        weights = torch.exp(-self.sharpness*(1-dots))#.to(self.device)#######################
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
-        weighted = weights.unsqueeze(-1) * self.directivity_sphere
+        weighted = weights.unsqueeze(-1)* self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
         directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
         directivity_amplitude_response = torch.exp(directivity_response)
@@ -541,6 +541,7 @@ class Renderer(nn.Module):
         cutoffs = self.bp_ord_cut_freqs.detach()############non sicuro se va bene
 
         for i in range(n_paths):
+            print("path: ", i, "of", n_paths)
             if(self.model_transmission or paths_without_transmissions[i]):
                 for j in range(len(frequency_response)):
                     bp_weights = calculate_weights_all_orders(self.freq_grid[j], azimuths[i], elevations[i], cutoffs)
@@ -1012,14 +1013,14 @@ def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
     phi_0 = np.deg2rad(azimuth_incoming)
     theta_0 = np.deg2rad(90 - elevation_incoming)
 
-    weights = {}
+    bp_weights = {}
     
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
             Y_lm = sph_harm(m, l, phi_0, theta_0)
-            weights[(l, m)] = Y_lm
+            bp_weights[(l, m)] = Y_lm
     
-    return weights
+    return bp_weights
 
 #################################################
 
@@ -1039,21 +1040,21 @@ def calculate_weights_all_orders(frequency, azimuth_incoming, elevation_incoming
 
     l_max = len(bp_orders_cutoffs)
 
-    weights = {}
+    bp_weights = {}
     
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
             Y_lm = sph_harm(m, l, phi_0, theta_0)
             if l!=0:
                 Y_lm *= sigmoid(frequency-bp_orders_cutoffs[l-1])
-            weights[(l, m)] = Y_lm
+            bp_weights[(l, m)] = Y_lm
     
-    return weights
+    return bp_weights
 
 #################################################
 
 #################################################
-def beam_pattern(azimuth, elevation, weights, l_max):
+def beam_pattern(azimuth, elevation, bp_weights, l_max):
     """
     Compute beam pattern in a specific direction.
     
@@ -1072,7 +1073,7 @@ def beam_pattern(azimuth, elevation, weights, l_max):
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
             Y_lm = sph_harm(m, l, phi, theta)
-            pattern += weights[(l, m)] * Y_lm
+            pattern += bp_weights[(l, m)] * Y_lm
     
     return np.abs(pattern)
 
