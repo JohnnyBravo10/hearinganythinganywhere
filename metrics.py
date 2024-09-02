@@ -135,7 +135,37 @@ def training_loss_considering_directionality(x,y, cutoff =9000, eps=1e-6):
 
     return loss
 
-############################################################
+##############################################################
+
+###########################################################
+def training_loss_for_learned_bp(x,y, cutoff =9000, eps=1e-6):
+    """
+    Training Loss considering directionality
+
+    Computes spectral L1 and log spectral L1 loss for each direction
+
+    Parameters
+    ----------
+    x: list of dictionaries (one for each direction), torch.tensor
+    y: lòist of dictionaries (one for each direction), torch.tensor
+    eps: added to the magnitude stft before taking the square root. Limits dynamic range of spectrogram.
+
+    Returns
+    -------
+    loss: float tensor
+
+    """
+
+    assert len(x) == len(y), "Different angular resolutions"
+    loss = 0
+    for r in x:
+        matching_r = next((i for i in y if i['angle'] == r['angle']), None)
+        loss += training_loss(r['t_response'], matching_r['t_response'], cutoff=cutoff, eps=eps)
+
+
+    return loss
+
+##############################################################
 
 """
 Evaluation Metrics
