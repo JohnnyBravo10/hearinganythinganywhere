@@ -469,7 +469,7 @@ def get_reflections_transmissions_and_delays(
     points_for_all_paths = []
 
     ###############################?????????must not be considered with the panel blocking the direct path!!!!!!!
-    '''
+    
     #Direct Path
     reflection_path_indices.append([])
     transmission_path_indices.append([])
@@ -481,7 +481,7 @@ def get_reflections_transmissions_and_delays(
     start_directions.append(direct_ray)
     end_directions.append(direct_ray)
 
-    '''
+    
 
     ###########################################
 

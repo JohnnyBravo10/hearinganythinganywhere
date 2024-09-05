@@ -140,6 +140,12 @@ def dataLoader(name):
             D = complex.TranslationDataset
         else:
             raise ValueError('Invalid Dataset Name')
+    ###################################
+    elif name[:5] == "prova":
+        import rooms.prova as dataset_prova
+        if name == "prova":
+            D = dataset_prova.BaseDataset
+    ########################################
     else:
         raise ValueError('Invalid Dataset Name')
 
