@@ -100,7 +100,8 @@ class Renderer(nn.Module):
         #######################################################
 
     def init_early(self):
-
+        ##################### A si potrebbe inizializzare in modo diverso conoscendo i materiali di cui sono fatte le superfici ###################
+         
         # Initializing "Energy Vector", which stores the coefficients for each surface
         if self.model_transmission:
             # Second axis indices are specular reflection, transmission, and absorption
@@ -210,7 +211,7 @@ class Renderer(nn.Module):
 
         
         # Normalized weights for each directivity bin
-        weights = torch.exp(-self.sharpness*(1-dots)).to(self.device)#####################################
+        weights = torch.exp(-self.sharpness*(1-dots))
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
         weighted = weights.unsqueeze(-1) * self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
@@ -235,7 +236,7 @@ class Renderer(nn.Module):
         if self.toa_perturb:
             noises = 7*torch.randn(n_paths, 1).to(self.device)
 
-        for i in range(n_paths):            
+        for i in range(n_paths-850): ##############togliere 840!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!           
             if self.toa_perturb:
                 delay = loc.delays[i] + torch.round(noises[i]).int()
             else:
@@ -296,7 +297,7 @@ class Renderer(nn.Module):
         """
         n_paths = loc.delays.shape[0]
         energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
-        amplitudes = torch.sqrt(energy_coeffs).to(self.device)################
+        amplitudes = torch.sqrt(energy_coeffs).to(self.device)
 
         # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
         # path reflects off surface
@@ -329,7 +330,7 @@ class Renderer(nn.Module):
 
         
         # Normalized weights for each directivity bin
-        weights = torch.exp(-self.sharpness*(1-dots)).to(self.device)################
+        weights = torch.exp(-self.sharpness*(1-dots))
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
         weighted = weights.unsqueeze(-1) * self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
@@ -398,31 +399,8 @@ class Renderer(nn.Module):
         RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length, device= self.device)
         for i in range(n_paths):
             for j in range(len(RIR_early_by_direction)):
-                '''
-                signal_to_add = apply_bandpass_filter(reflection_kernels[i], RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1], fs = self.nyq * 2)
 
-
-                e = np.array([response['direction'][1] for response in interval['responses']])
-                differences = np.array([abs(el-elevations[i]) for el in e])
-                min_index = np.argmin(differences)
-                elevation = e[min_index]
-
-                if (elevation == -90 or elevation == 90):
-                    azimuth = 0
-                else:
-                    a = np.array([response['direction'][0] for response in interval['responses']])
-                    differences = np.array([min(abs(az-azimuths[i]),abs(360-abs(az-azimuths[i]))) for az in a])
-                    min_index = np.argmin(differences)
-                    azimuth = a[min_index]
-
-
-                for response in interval['responses']:
-                    if response['direction'][0] == azimuth:
-                        if response['direction'][1] == elevation:
-                            response['response'] += signal_to_add
-                '''
-                #
-                #print("rtange considerato", RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1])
+                #print("range considerato", RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1])
                 #print("direzione di arrivo", azimuths[i], elevations[i])
                 
                 beampattern_weights = calculate_weights(azimuths[i], elevations[i], int(180/angular_sensitivities[j]['angle']))
@@ -434,7 +412,7 @@ class Renderer(nn.Module):
                     response['response'] += signal_to_add * beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max
                     #print("direzioni considerate", response['direction'][0], response['direction'][1],)
                     #print("attenuazione", beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max)
-                #
+                
 
         for interval in RIR_early_by_direction:
             for r in interval['responses']:
@@ -446,7 +424,7 @@ class Renderer(nn.Module):
     ##############################################################################
 
     ##############################################################################
-    # Doesn't support hrirs adn toa_perturb
+    # Doesn't support hrirs and toa_perturb
     def render_early_with_learned_beampatterns(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """
         Renders the early-stage RIR
@@ -475,7 +453,7 @@ class Renderer(nn.Module):
         """
         n_paths = loc.delays.shape[0]
         energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
-        amplitudes = torch.sqrt(energy_coeffs).to(self.device)################
+        amplitudes = torch.sqrt(energy_coeffs).to(self.device)
 
         # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
         # path reflects off surface
@@ -527,21 +505,25 @@ class Renderer(nn.Module):
         Introducing delays ####################################################
         """
 
-        
-        ############introduci i delay!!!!!!!!!!!!!!!
         max_delay = max(loc.delays)
 
-        frequency_response_with_delays = torch.Tensor()
+        frequency_response_with_delays = torch.Tensor().to(self.device)
 
 
-        import matplotlib.pyplot as plt################
+        #import matplotlib.pyplot as plt################
 
         for i in range(len(frequency_response)):
 
             """
             ENTERING THE TIME DOMAIN
             """
-            sig = torch.fft.irfft(frequency_response[i])
+            ################provo queste aggiunte
+            phases = hilbert_one_sided(safe_log(frequency_response[i]), device=self.device)
+            fx2 = frequency_response[i]*torch.exp(1j*phases)
+            ####################################################
+
+            sig = torch.fft.irfft(fx2)
+            '''
             if (i==0 or i ==1):  
                 plt.plot(sig.detach())
                 plt.title("Plot sig")
@@ -549,9 +531,11 @@ class Renderer(nn.Module):
                 plt.ylabel("Valore")
                 plt.grid(True)
                 plt.show()
+            '''
                 
-            del_pad_sig = torch.cat([torch.zeros(loc.delays[i]), sig, torch.zeros(max_delay - loc.delays[i])])
+            del_pad_sig = torch.cat([torch.zeros(loc.delays[i]).to(self.device), sig, torch.zeros(max_delay - loc.delays[i]).to(self.device)])
             
+            '''
             if (i==0 or i ==1):  
                 plt.plot(del_pad_sig.detach())
                 plt.title("Plot del pad sig")
@@ -559,12 +543,17 @@ class Renderer(nn.Module):
                 plt.ylabel("Valore")
                 plt.grid(True)
                 plt.show()
+            '''
             
             """
             BACK TO THE FREQUENCY DOMAIN
             """
 
             new_freq_resp = torch.fft.rfft(del_pad_sig)
+
+            ##########qui si potrebbe pensare di ridurre la dimensione di new_freq_response (tutte alla stessa lunghezza)
+            ##########perdi risoluzione ma più facile la computazione (altrimenti sono più lunghe anche di quelle gestite nel codice originale)
+
             '''
             plt.plot(torch.fft.irfft(new_freq_resp).detach())
             plt.title("Plot after antitransforming")
@@ -596,18 +585,14 @@ class Renderer(nn.Module):
         azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
         elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
-        directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, len(frequency_response[0]), self.device)############checkare il secondo parametro
+        directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, len(frequency_response[0]), self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
         n_orders = len (self.bp_ord_cut_freqs)
 
-        cutoffs = self.bp_ord_cut_freqs.detach()############non sicuro se va bene
+        cutoffs = self.bp_ord_cut_freqs.detach()
 
-        print("expected delay", loc.delays[0])############################
 
-        #################################################
-        #n_paths=2 ##############sto considerando solo 100 path!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ###############################################
         self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
-        for i in [0,1]:#################################sarebbe range(n_paths)
+        for i in range(n_paths-850):#################################togliere il 840!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             print("path: ", i + 1, "of", n_paths)
             if(self.model_transmission or paths_without_transmissions[i]):
                 for j in range(len(frequency_response[0])):
@@ -615,6 +600,8 @@ class Renderer(nn.Module):
                     for direction in directional_freq_responses:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
                         direction['f_response'][j] += frequency_response[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)############è ok mantenerlo come complesso?
+
+        padding = self.RIR_length - len(directional_freq_responses[0]['f_response']) ##########padding necessario per farli lunghi self.RIR_length
 
         for r in directional_freq_responses:
             #phases = hilbert_one_sided(safe_log(r['f_response']), device=self.device)##########provo a toglierle
@@ -624,11 +611,16 @@ class Renderer(nn.Module):
             """
             TIME DOMAIN
             """
-            out_full = torch.fft.irfft(r['f_response'])############provo a ,mettere questo
+            out_full = torch.fft.irfft(r['f_response'])############provo a mettere questo
             
             
             #r['t_response'] = out_full[...,:self.filter_length] * self.window ###########dubbio su self.window
             r['t_response'] = out_full##########window serve?
+
+
+            r['t_response'] = torch.cat((r['t_response'], torch.zeros(padding).to(self.device))) ##li rendo uguali in lunghezza a quello che sarà la late response
+
+
             r['t_response']= F.fftconvolve(
                     self.source_response - torch.mean(self.source_response), r['t_response'])[:self.RIR_length]
             r['t_response'] = r['t_response']*((self.sigmoid(self.decay)**self.times)[:len(r['t_response'])])################aggiunto il cut
@@ -698,13 +690,15 @@ class Renderer(nn.Module):
                 directional_freq_responses = self.render_early_with_learned_beampatterns(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
 
         late = self.render_late(loc=loc)
+        #IK_temp = get_time_interpolator(n_target=len(directional_freq_responses[0]['t_response']), indices=torch.tensor(self.spline_indices)).to(self.device)  ############non sto modificandolo self.IK (forse si può fare solo una volta all'inizio?)
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
 
         signal_to_add = late / len(directional_freq_responses)
 
-
+        padding = self.RIR_length - len(directional_freq_responses[0]['t_response']) ##########padding necessario per farli lunghi self.RIR_length
     
         for r in directional_freq_responses:    
+            
             r['t_response'] = signal_to_add*self.spline + r['t_response']*(1-self.spline)
 
 
