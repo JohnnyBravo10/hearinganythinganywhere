@@ -9,6 +9,8 @@ import trace1
 
 #############################
 from scipy.special import sph_harm
+
+import matplotlib.pyplot as plt################
 ##############################
 
 
@@ -236,7 +238,7 @@ class Renderer(nn.Module):
         if self.toa_perturb:
             noises = 7*torch.randn(n_paths, 1).to(self.device)
 
-        for i in range(n_paths-850): ##############togliere 840!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!           
+        for i in range(n_paths):        
             if self.toa_perturb:
                 delay = loc.delays[i] + torch.round(noises[i]).int()
             else:
@@ -248,6 +250,16 @@ class Renderer(nn.Module):
 
             if not self.model_transmission:
                 reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
+
+            ######################################################
+            if (i==0):  
+                plt.plot(reflection_kernels[i].detach().cpu())
+                plt.title("Plot del pad sig")
+                plt.xlabel("Indice")
+                plt.ylabel("Valore")
+                plt.grid(True)
+                plt.show() 
+            #######################################################
 
         if hrirs is not None:
             reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
@@ -486,7 +498,7 @@ class Renderer(nn.Module):
 
         
         # Normalized weights for each directivity bin
-        weights = torch.exp(-self.sharpness*(1-dots))#.to(self.device)#######################
+        weights = torch.exp(-self.sharpness*(1-dots))
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
         weighted = weights.unsqueeze(-1)* self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
@@ -498,7 +510,7 @@ class Renderer(nn.Module):
         """
         frequency_response = directivity_amplitude_response*reflection_frequency_response
 
-        print("frequency response", frequency_response)#########################
+        #print("frequency response", frequency_response)#########################
 
 
         """
@@ -510,23 +522,20 @@ class Renderer(nn.Module):
         frequency_response_with_delays = torch.Tensor().to(self.device)
 
 
-        #import matplotlib.pyplot as plt################
-
         for i in range(len(frequency_response)):
 
             """
             ENTERING THE TIME DOMAIN
             """
-            ################provo queste aggiunte
             phases = hilbert_one_sided(safe_log(frequency_response[i]), device=self.device)
             fx2 = frequency_response[i]*torch.exp(1j*phases)
-            ####################################################
 
             sig = torch.fft.irfft(fx2)
+            
             '''
-            if (i==0 or i ==1):  
-                plt.plot(sig.detach())
-                plt.title("Plot sig")
+            if (i==0):  
+                plt.plot(sig.detach().cpu())
+                plt.title("antitrasformata")
                 plt.xlabel("Indice")
                 plt.ylabel("Valore")
                 plt.grid(True)
@@ -534,11 +543,27 @@ class Renderer(nn.Module):
             '''
                 
             del_pad_sig = torch.cat([torch.zeros(loc.delays[i]).to(self.device), sig, torch.zeros(max_delay - loc.delays[i]).to(self.device)])
+            #del_pad_sig = torch.cat([torch.zeros(loc.delays[i]).to(self.device), sig, torch.zeros(self.RIR_length - loc.delays[i]).to(self.device)])##################################
             
             '''
-            if (i==0 or i ==1):  
-                plt.plot(del_pad_sig.detach())
-                plt.title("Plot del pad sig")
+            if (i==0):  
+                plt.plot(del_pad_sig.detach().cpu())
+                plt.title("Seganle paddato e ritardato")
+                plt.xlabel("Indice")
+                plt.ylabel("Valore")
+                plt.grid(True)
+                plt.show()
+            '''
+
+
+            factor = (2*self.nyq)/343
+            del_pad_sig = del_pad_sig*(factor/(loc.delays[i])) #attenuazione proporzionaloe alla lunghezza del path
+
+
+            '''
+            if (i==0):  
+                plt.plot(del_pad_sig.detach().cpu())
+                plt.title("segnale attenuato")
                 plt.xlabel("Indice")
                 plt.ylabel("Valore")
                 plt.grid(True)
@@ -567,7 +592,7 @@ class Renderer(nn.Module):
 
         frequency_response= frequency_response_with_delays
 
-        print("frequency response shape", frequency_response.shape)
+        #print("frequency response shape", frequency_response.shape)
         
 
         norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
@@ -592,8 +617,10 @@ class Renderer(nn.Module):
 
 
         self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
-        for i in range(n_paths-850):#################################togliere il 840!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        for i in range(n_paths):
             print("path: ", i + 1, "of", n_paths)
+            print("incoming direction", azimuths[i], elevations[i])
             if(self.model_transmission or paths_without_transmissions[i]):
                 for j in range(len(frequency_response[0])):
                     bp_weights = calculate_weights_all_orders(self.freq_grid[j], azimuths[i], elevations[i], cutoffs)
@@ -604,18 +631,16 @@ class Renderer(nn.Module):
         padding = self.RIR_length - len(directional_freq_responses[0]['f_response']) ##########padding necessario per farli lunghi self.RIR_length
 
         for r in directional_freq_responses:
-            #phases = hilbert_one_sided(safe_log(r['f_response']), device=self.device)##########provo a toglierle
-            #fx2 = r['f_response']*torch.exp(1j*phases)
-            #out_full = torch.fft.irfft(fx2)
 
             """
             TIME DOMAIN
             """
             out_full = torch.fft.irfft(r['f_response'])############provo a mettere questo
-            
-            
-            #r['t_response'] = out_full[...,:self.filter_length] * self.window ###########dubbio su self.window
-            r['t_response'] = out_full##########window serve?
+
+            new_window = torch.Tensor(
+            scipy.fft.fftshift(scipy.signal.get_window("hamming", len(out_full), fftbins=False))).to(self.device)#necessario creare una nuova window perchè doveva avere la giusta dimensione
+
+            r['t_response'] = out_full * new_window #########window serve?
 
 
             r['t_response'] = torch.cat((r['t_response'], torch.zeros(padding).to(self.device))) ##li rendo uguali in lunghezza a quello che sarà la late response
@@ -623,7 +648,7 @@ class Renderer(nn.Module):
 
             r['t_response']= F.fftconvolve(
                     self.source_response - torch.mean(self.source_response), r['t_response'])[:self.RIR_length]
-            r['t_response'] = r['t_response']*((self.sigmoid(self.decay)**self.times)[:len(r['t_response'])])################aggiunto il cut
+            r['t_response'] = r['t_response']*((self.sigmoid(self.decay)**self.times)) #[:len(r['t_response'])])################aggiunto il cut??
 
         return directional_freq_responses
     
@@ -690,12 +715,9 @@ class Renderer(nn.Module):
                 directional_freq_responses = self.render_early_with_learned_beampatterns(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
 
         late = self.render_late(loc=loc)
-        #IK_temp = get_time_interpolator(n_target=len(directional_freq_responses[0]['t_response']), indices=torch.tensor(self.spline_indices)).to(self.device)  ############non sto modificandolo self.IK (forse si può fare solo una volta all'inizio?)
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
 
         signal_to_add = late / len(directional_freq_responses)
-
-        padding = self.RIR_length - len(directional_freq_responses[0]['t_response']) ##########padding necessario per farli lunghi self.RIR_length
     
         for r in directional_freq_responses:    
             

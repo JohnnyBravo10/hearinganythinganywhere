@@ -468,18 +468,19 @@ def get_reflections_transmissions_and_delays(
     end_directions = []
     points_for_all_paths = []
 
-    ###############################?????????must not be considered with the panel blocking the direct path!!!!!!!
+    ###############################?????????must be checked if the direct path exists
     
-    #Direct Path
-    reflection_path_indices.append([])
-    transmission_path_indices.append([])
-    distances.append(np.linalg.norm(source-dest))
-    points_for_all_paths.append(np.stack((source,dest)))
+    if direct_path_check(source, dest, surfaces):
+        #Direct Path
+        reflection_path_indices.append([])
+        transmission_path_indices.append([])
+        distances.append(np.linalg.norm(source-dest))
+        points_for_all_paths.append(np.stack((source,dest)))
 
-    #Direct Path Angle
-    direct_ray = dest - source
-    start_directions.append(direct_ray)
-    end_directions.append(direct_ray)
+        #Direct Path Angle
+        direct_ray = dest - source
+        start_directions.append(direct_ray)
+        end_directions.append(direct_ray)
 
     
 
@@ -619,3 +620,57 @@ if __name__=="__main__":
             img_save_dir=args.save_dir,
             parallel_surface_pairs = D.parallel_surface_pairs,
             max_axial_order = args.max_axial_order)
+
+
+
+#############################################################################
+def direct_path_check(source, dest, surfaces):
+    for surface in surfaces:
+        if surface.parallelogram:
+            if moller_trumbore_intersect(source, dest, surface.p0, surface.p1, surface.p2):
+                return False
+            if moller_trumbore_intersect(source, dest, surface.opposite, surface.p1, surface.p2):
+                return False
+        
+        else:
+            if moller_trumbore_intersect(source, dest, surface.p0, surface.p1, surface.p2):
+                return False
+            
+    return True
+
+
+#################################################################################
+
+#############################################################################
+def moller_trumbore_intersect(a, b, v0, v1, v2):
+    # Definisci gli edge del triangolo
+    edge1 = v1 - v0
+    edge2 = v2 - v0
+    h = np.cross(b - a, edge2)
+    det = np.dot(edge1, h)
+
+    # Controlla se il segmento è parallelo al triangolo
+    if abs(det) < 1e-7:
+        return False
+
+    inv_det = 1.0 / det
+    s = a - v0
+    u = inv_det * np.dot(s, h)
+
+    if u < 0.0 or u > 1.0:
+        return False
+
+    q = np.cross(s, edge1)
+    v = inv_det * np.dot(b - a, q)
+
+    if v < 0.0 or u + v > 1.0:
+        return False
+
+    t = inv_det * np.dot(edge2, q)
+
+    if t >= 0.0 and t <= 1.0:
+        # Il segmento interseca il triangolo
+        return True
+
+    return False
+##########################################################################
