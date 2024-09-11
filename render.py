@@ -613,17 +613,17 @@ class Renderer(nn.Module):
         directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, len(frequency_response[0]), self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
         n_orders = len (self.bp_ord_cut_freqs)
 
-        cutoffs = self.bp_ord_cut_freqs.detach()
+        cutoffs = self.bp_ord_cut_freqs.detach() ######################################dubbiooooooooooooooooooooooooooooooo
 
 
         self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
 
         for i in range(n_paths):
-            print("path: ", i + 1, "of", n_paths)
-            print("incoming direction", azimuths[i], elevations[i])
+            #print("path: ", i + 1, "of", n_paths)
+            #print("incoming direction", azimuths[i], elevations[i])
             if(self.model_transmission or paths_without_transmissions[i]):
                 for j in range(len(frequency_response[0])):
-                    bp_weights = calculate_weights_all_orders(self.freq_grid[j], azimuths[i], elevations[i], cutoffs)
+                    bp_weights = calculate_weights_all_orders(self.freq_grid[j], azimuths[i], elevations[i], cutoffs, self.device)
                     for direction in directional_freq_responses:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
                         direction['f_response'][j] += frequency_response[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)############è ok mantenerlo come complesso?
@@ -1116,7 +1116,7 @@ def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
 #################################################
 
 ###########################################################
-def calculate_weights_all_orders(frequency, azimuth_incoming, elevation_incoming, bp_orders_cutoffs):
+def calculate_weights_all_orders(frequency, azimuth_incoming, elevation_incoming, bp_orders_cutoffs, device):
     """
     Compute the weights W_{lm} for the direction of arrival of the signal.
     
@@ -1135,7 +1135,7 @@ def calculate_weights_all_orders(frequency, azimuth_incoming, elevation_incoming
     
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
-            Y_lm = sph_harm(m, l, phi_0, theta_0)
+            Y_lm = sph_harm(m, l, phi_0, theta_0).to(device)
             if l!=0:
                 Y_lm *= sigmoid(frequency-bp_orders_cutoffs[l-1])
             bp_weights[(l, m)] = Y_lm

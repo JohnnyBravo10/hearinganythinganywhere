@@ -66,8 +66,8 @@ class Dataset:
 
     def load_data(self):
         self.xyzs = np.load(os.path.join(self.load_dir, "xyzs.npy"))
-        self.RIRs = np.load(os.path.join(self.load_dir, "RIRs.npy"))
-        self.music = np.load(os.path.join(self.load_dir, "music.npy"), mmap_mode='r')
+        self.RIRs = np.load(os.path.join(self.load_dir, "RIRs.npy"), allow_pickle = True)###############allow_pickle necessario per array di oggetti (dictionaries sulle direzioni) (qui e sotto)
+        self.music = np.load(os.path.join(self.load_dir, "music.npy"), allow_pickle = True)#, mmap_mode='r')################### mmap_mode = 'r' non utilizzabile su dati che sono object
         self.music_dls = np.load(os.path.join(self.load_dir, "music_dls.npy"), mmap_mode='r')
         self.bin_music_dls = np.load(os.path.join(self.load_dir, "bin_music_dls.npy"), mmap_mode='r') #!@#$
         self.bin_xyzs = np.load(os.path.join(self.load_dir, "bin_xyzs.npy"), mmap_mode='r')

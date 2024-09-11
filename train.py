@@ -58,7 +58,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 save_dir=None, 
                 pink_noise_supervision = False, pink_start_epoch=500,
                 continue_train=False,
-                fs=48000):
+                fs=48000): 
     """
     Runs the training process
 
@@ -89,7 +89,9 @@ def train_loop(R, Ls, train_gt_audio, D = None,
     if save_dir is not None:
         makedir_if_needed(save_dir)
 
-    train_gt_audio = torch.Tensor(train_gt_audio).cuda()
+
+    #train_gt_audio = torch.Tensor(train_gt_audio).cuda()#######################era così nell'originale
+
 
     # Lower learning rate on residual
     my_list = ['RIR_residual']
@@ -102,7 +104,8 @@ def train_loop(R, Ls, train_gt_audio, D = None,
 
     losses = []
     
-    if args.continue_train:
+    #if args.continue_train: ######################l'originale era così, ma args non serve!!!!!!
+    if continue_train:
         losses = list(np.load(os.path.join(save_dir,"losses.npy")))
         N_train = len(Ls)
         epoch = int(len(losses)/(int(N_train)))
@@ -126,7 +129,15 @@ def train_loop(R, Ls, train_gt_audio, D = None,
 
             for idx in curr_indices:
 
-                output = R.render_RIR(Ls[idx])
+                ###############c'era solo il secondo caso nell'originale (così capisce da solo se è nel caso direzionale o no)
+                if isinstance(train_gt_audio[idx], np.ndarray):
+                    print("caso direzionale")
+                    output = R.render_RIR_learned_beampattern(Ls[idx])
+                else:
+                    print("caso omnidirezionale")
+                    output = R.render_RIR(Ls[idx])
+                ###################################################
+
                 loss = loss_fcn(output, train_gt_audio[idx])
 
                 if pink_noise_supervision and epoch >= pink_start_epoch:

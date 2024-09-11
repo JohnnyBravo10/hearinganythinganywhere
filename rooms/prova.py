@@ -53,8 +53,8 @@ base_surfaces = walls
 Train and Test Split
 """
 
-train_indices = np.arange(12)*(57)
-valid_indices = dataset.compute_complement_indices(list(train_indices) + list(np.arange(315)*2), 630)[::2]
+train_indices = np.arange(9) #######12 punti ne prendo 9 per i train
+valid_indices = dataset.compute_complement_indices(list(train_indices) + list(np.arange(315)*2), 12)[::2] ##############sono solo 12 in totale
 
 
 #Speaker xyz estimated from 12-point TOA, inside speaker, 8.5cm away from manual measurement.
@@ -68,7 +68,7 @@ BaseDataset = dataset.Dataset(
    parallel_surface_pairs=[[0,1], [2,3], [4,5]],
    train_indices = train_indices,
    valid_indices = valid_indices,
-   max_order = 5,
-   max_axial_order = 10,
-   n_data = 630
+   max_order = 1, ##################5
+   max_axial_order = 1, #############10
+   n_data = 12 ######in questo caso
 )
