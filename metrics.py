@@ -18,7 +18,7 @@ def get_stft(x, n_fft, hop_length=None):
     """
     Returns the stft of x.
     """
-    return torch.stft(x,
+    return torch.stft(x.to(device),  ##########AGGIUNTO TO DEVICE
                       n_fft=n_fft,
                       hop_length = hop_length,
                       window=torch.hann_window(n_fft).to(device),

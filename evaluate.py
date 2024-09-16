@@ -50,7 +50,7 @@ def render_music(pred_rirs, music_sources, rir_length=96000, length=10*48000, de
 
     for i in range(music_sources.shape[0]):
         pred_musics[i] = F.fftconvolve(pred_rirs[i,:rir_length].unsqueeze(0).to(device),
-                                        music_sources[i,:].to(device))[...,:length].cpu()
+                                        music_sources[i,:].to(device))[...,:length]#.cpu()########################################
 
     torch.cuda.empty_cache()
     return pred_musics.detach().numpy()#############?????????non c'era detach

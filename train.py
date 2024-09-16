@@ -117,6 +117,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
     
     while epoch < n_epochs:
 
+        print("Epoch n°:")
         print(epoch, flush=True)
 
         N_train = len(Ls)
@@ -131,10 +132,10 @@ def train_loop(R, Ls, train_gt_audio, D = None,
 
                 ###############c'era solo il secondo caso nell'originale (così capisce da solo se è nel caso direzionale o no)
                 if isinstance(train_gt_audio[idx], np.ndarray):
-                    print("caso direzionale")
+                    #print("caso direzionale")
                     output = R.render_RIR_learned_beampattern(Ls[idx])
                 else:
-                    print("caso omnidirezionale")
+                    #print("caso omnidirezionale")
                     output = R.render_RIR(Ls[idx])
                 ###################################################
 

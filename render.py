@@ -252,6 +252,7 @@ class Renderer(nn.Module):
                 reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
 
             ######################################################
+            '''
             if (i==0):  
                 plt.plot(reflection_kernels[i].detach().cpu())
                 plt.title("Plot del pad sig")
@@ -259,6 +260,7 @@ class Renderer(nn.Module):
                 plt.ylabel("Valore")
                 plt.grid(True)
                 plt.show() 
+            '''
             #######################################################
 
         if hrirs is not None:
@@ -613,7 +615,7 @@ class Renderer(nn.Module):
         directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, len(frequency_response[0]), self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
         n_orders = len (self.bp_ord_cut_freqs)
 
-        cutoffs = self.bp_ord_cut_freqs.detach() ######################################dubbiooooooooooooooooooooooooooooooo
+        cutoffs = self.bp_ord_cut_freqs#.detach() ######################################dubbiooooooooooooooooooooooooooooooo
 
 
         self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
@@ -1113,7 +1115,7 @@ def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
     
     return bp_weights
 
-#################################################
+##########################################################
 
 ###########################################################
 def calculate_weights_all_orders(frequency, azimuth_incoming, elevation_incoming, bp_orders_cutoffs, device):
@@ -1166,7 +1168,7 @@ def beam_pattern(azimuth, elevation, bp_weights, l_max):
             Y_lm = sph_harm(m, l, phi, theta)
             pattern += bp_weights[(l, m)] * Y_lm
     
-    return np.abs(pattern)
+    return torch.abs(pattern.cpu())
 
 #####################################################
 
