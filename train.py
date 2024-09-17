@@ -152,6 +152,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 
                 loss.backward()
                 losses.append(loss.item())
+                print("loss:") 
                 print(loss.item(),flush=True)
 
             optimizer.step()

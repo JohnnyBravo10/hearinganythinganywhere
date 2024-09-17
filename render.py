@@ -11,6 +11,7 @@ import trace1
 from scipy.special import sph_harm
 
 import matplotlib.pyplot as plt################
+import time ######################################
 ##############################
 
 
@@ -465,6 +466,9 @@ class Renderer(nn.Module):
         """
         Computing Reflection Response
         """
+
+        a = time.time() ################################
+
         n_paths = loc.delays.shape[0]
         energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
         amplitudes = torch.sqrt(energy_coeffs).to(self.device)
@@ -514,11 +518,14 @@ class Renderer(nn.Module):
 
         #print("frequency response", frequency_response)#########################
 
+        b = time.time()
+        print("time to initializie freq resp = ", b-a)
 
         """
         Introducing delays ####################################################
         """
 
+        a = time.time()
         max_delay = max(loc.delays)
 
         frequency_response_with_delays = torch.Tensor().to(self.device)
@@ -594,8 +601,12 @@ class Renderer(nn.Module):
 
         frequency_response= frequency_response_with_delays
 
+        b = time.time()
+        print("time to introduce delays = ", b-a)
+
         #print("frequency response shape", frequency_response.shape)
         
+        a = time.time()
 
         norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
         incoming_listener_directions = -loc.end_directions_normalized/norms
@@ -615,10 +626,15 @@ class Renderer(nn.Module):
         directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, len(frequency_response[0]), self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
         n_orders = len (self.bp_ord_cut_freqs)
 
-        cutoffs = self.bp_ord_cut_freqs#.detach() ######################################dubbiooooooooooooooooooooooooooooooo
+        cutoffs = self.bp_ord_cut_freqs.detach() ######################################dubbioo
 
 
         self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
+
+        b = time.time()
+        print("time to compute az and ele and set up for the beampatterns: ", b-a)
+
+        a = time.time()
 
         for i in range(n_paths):
             #print("path: ", i + 1, "of", n_paths)
@@ -630,6 +646,11 @@ class Renderer(nn.Module):
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
                         direction['f_response'][j] += frequency_response[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)############è ok mantenerlo come complesso?
 
+        b = time.time()
+        print("time to apply beampattern directional attenuation: ", b-a)
+
+
+        a = time.time()
         padding = self.RIR_length - len(directional_freq_responses[0]['f_response']) ##########padding necessario per farli lunghi self.RIR_length
 
         for r in directional_freq_responses:
@@ -651,6 +672,10 @@ class Renderer(nn.Module):
             r['t_response']= F.fftconvolve(
                     self.source_response - torch.mean(self.source_response), r['t_response'])[:self.RIR_length]
             r['t_response'] = r['t_response']*((self.sigmoid(self.decay)**self.times)) #[:len(r['t_response'])])################aggiunto il cut??
+
+            b = time.time()
+
+        print("time to pad, anti-transform, convolve with source ir, apply decay: ", b-a)
 
         return directional_freq_responses
     
