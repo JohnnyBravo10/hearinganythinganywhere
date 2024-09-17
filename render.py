@@ -911,23 +911,6 @@ def hilbert_one_sided(x, device):
     return torch.imag(x)
 
 
-def fibonacci_sphere(n_samples):
-    """Distributes n_samples on a unit fibonacci_sphere"""
-    points = []
-    phi = math.pi * (math.sqrt(5.) - 1.)
-
-    for i in range(n_samples):
-        y = 1 - (i / float(n_samples - 1)) * 2
-        radius = math.sqrt(1 - y * y)
-
-        theta = phi * i
-
-        x = math.cos(theta) * radius
-        z = math.sin(theta) * radius
-
-        points.append((x, y, z))
-
-    return np.array(points)
 
 
 def safe_log(x, eps=1e-9):
