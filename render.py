@@ -129,6 +129,8 @@ class Renderer(nn.Module):
         dir_freq_indices = torch.round(self.dir_freqs*((n_freq_samples-1)/self.nyq)).int()
         self.dir_freq_interpolator = get_interpolator(n_freq_target=n_freq_samples,
                                                       freq_indices=dir_freq_indices).to(self.device)
+        
+        
 
         self.window = torch.Tensor(
             scipy.fft.fftshift(scipy.signal.get_window("hamming", self.filter_length, fftbins=False))).to(self.device)
@@ -515,6 +517,15 @@ class Renderer(nn.Module):
         Computing overall frequency response, minimum phase transform
         """
         frequency_response = directivity_amplitude_response*reflection_frequency_response
+        
+        
+        plt.plot(frequency_response[0].detach())
+        plt.title("frequency_response_path0")
+        plt.xlabel("Indice")
+        plt.ylabel("Valore")
+        plt.grid(True)
+        plt.show()
+    
 
         #print("frequency response", frequency_response)#########################
 
@@ -529,6 +540,15 @@ class Renderer(nn.Module):
         max_delay = max(loc.delays)
 
         frequency_response_with_delays = torch.Tensor().to(self.device)
+        
+        ##########qui si potrebbe pensare di ridurre la dimensione di new_freq_response (tutte alla stessa lunghezza)
+        ##########perdi risoluzione ma più facile la computazione (altrimenti sono più lunghe anche di quelle gestite nel codice originale)
+        ##########tipo così
+        pre_bp_freqs = torch.Tensor([32, 45, 63, 90, 125, 180, 250, 360, 500, 720, 1000, 1400, 2000, 2800, 4000, 5600, 8000, 12000, 16000])#####################si può ,mettere tra i parametri iniziali
+        
+        pre_bp_freq_indices = torch.round(pre_bp_freqs*((self.RIR_length-1)/self.nyq)).int() 
+        self.pre_bp_interpolator = get_interpolator(self.RIR_length, pre_bp_freq_indices).to(self.device)
+        ################################################################################
 
 
         for i in range(len(frequency_response)):
@@ -584,9 +604,27 @@ class Renderer(nn.Module):
             """
 
             new_freq_resp = torch.fft.rfft(del_pad_sig)
+            
+            
+            if (i==0):  
+                plt.plot(unwrap_phase(new_freq_resp.angle()).detach().cpu())
+                plt.title("new freq resp fase unwrapped")
+                plt.xlabel("Indice")
+                plt.ylabel("Valore")
+                plt.grid(True)
+                plt.show()
+            
+            
+            ##########################################
+            downsampled_new_freq_resp = torch.zeros(len(pre_bp_freqs)).to(self.device)
+            
+            for i in range(len(pre_bp_freqs)):
+                index = torch.round(pre_bp_freqs[i]*((len(new_freq_resp)-1)/self.nyq)).int()
+                
+                downsampled_new_freq_resp[i] = new_freq_resp[index] 
+            
+            ##########################################
 
-            ##########qui si potrebbe pensare di ridurre la dimensione di new_freq_response (tutte alla stessa lunghezza)
-            ##########perdi risoluzione ma più facile la computazione (altrimenti sono più lunghe anche di quelle gestite nel codice originale)
 
             '''
             plt.plot(torch.fft.irfft(new_freq_resp).detach())
@@ -596,7 +634,8 @@ class Renderer(nn.Module):
             plt.grid(True)
             plt.show()
             '''
-            frequency_response_with_delays = torch.cat((frequency_response_with_delays, new_freq_resp.unsqueeze(0)), dim =0)
+            #frequency_response_with_delays = torch.cat((frequency_response_with_delays, new_freq_resp.unsqueeze(0)), dim = 0)
+            frequency_response_with_delays = torch.cat((frequency_response_with_delays, downsampled_new_freq_resp.unsqueeze(0)), dim = 0)################################
 
 
         frequency_response= frequency_response_with_delays
@@ -626,10 +665,10 @@ class Renderer(nn.Module):
         directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, len(frequency_response[0]), self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
         n_orders = len (self.bp_ord_cut_freqs)
 
-        cutoffs = self.bp_ord_cut_freqs.detach() ######################################dubbioo
+        cutoffs = self.bp_ord_cut_freqs#.detach() ######################################dubbioo
 
 
-        self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
+        #self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
 
         b = time.time()
         print("time to compute az and ele and set up for the beampatterns: ", b-a)
@@ -641,7 +680,7 @@ class Renderer(nn.Module):
             #print("incoming direction", azimuths[i], elevations[i])
             if(self.model_transmission or paths_without_transmissions[i]):
                 for j in range(len(frequency_response[0])):
-                    bp_weights = calculate_weights_all_orders(self.freq_grid[j], azimuths[i], elevations[i], cutoffs, self.device)
+                    bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], azimuths[i], elevations[i], cutoffs, self.device)############prima di fare downsampling usavo la grid
                     for direction in directional_freq_responses:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
                         direction['f_response'][j] += frequency_response[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)############è ok mantenerlo come complesso?
@@ -651,22 +690,36 @@ class Renderer(nn.Module):
 
 
         a = time.time()
-        padding = self.RIR_length - len(directional_freq_responses[0]['f_response']) ##########padding necessario per farli lunghi self.RIR_length
+        #padding = self.RIR_length - len(directional_freq_responses[0]['f_response']) ##########padding necessario per farli lunghi self.RIR_length#####non più necessario con interpolatore
 
         for r in directional_freq_responses:
 
             """
             TIME DOMAIN
             """
-            out_full = torch.fft.irfft(r['f_response'])############provo a mettere questo
+            
+            upsampled_f_response = torch.sum(r['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2) #####################################
+            
+            print("upsampked response: ", upsampled_f_response)
+            
+            
+            plt.plot(upsampled_f_response.angle().detach())
+            plt.title("upsampled_f_response")
+            plt.xlabel("Indice")
+            plt.ylabel("Valore")
+            plt.grid(True)
+            plt.show()
+            
+            
+            out_full = torch.fft.irfft(upsampled_f_response)############provo a mettere questo#########prima dell'interpolzione era r['f_response]
 
             new_window = torch.Tensor(
             scipy.fft.fftshift(scipy.signal.get_window("hamming", len(out_full), fftbins=False))).to(self.device)#necessario creare una nuova window perchè doveva avere la giusta dimensione
 
-            r['t_response'] = out_full * new_window #########window serve?
+            r['t_response'] = out_full #* new_window #########window serve?
 
 
-            r['t_response'] = torch.cat((r['t_response'], torch.zeros(padding).to(self.device))) ##li rendo uguali in lunghezza a quello che sarà la late response
+            #r['t_response'] = torch.cat((r['t_response'], torch.zeros(padding).to(self.device))) ##li rendo uguali in lunghezza a quello che sarà la late response######con interpolaizone lo sono già
 
 
             r['t_response']= F.fftconvolve(
@@ -1184,3 +1237,28 @@ def beam_pattern(azimuth, elevation, bp_weights, l_max):
 def sigmoid(x):
     return 1 / (1 + torch.exp(-x))
 #######################################################
+
+def fibonacci_sphere(n_samples):
+    """Distributes n_samples on a unit fibonacci_sphere"""
+    points = []
+    phi = math.pi * (math.sqrt(5.) - 1.)
+
+    for i in range(n_samples):
+        y = 1 - (i / float(n_samples - 1)) * 2
+        radius = math.sqrt(1 - y * y)
+
+        theta = phi * i
+
+        x = math.cos(theta) * radius
+        z = math.sin(theta) * radius
+
+        points.append((x, y, z))
+
+    return np.array(points)
+
+###############################################àà
+def unwrap_phase(phase):
+    diff_phase = torch.diff(phase)
+    unwrapped = torch.cat([phase[:1], phase[1:] + 2 * torch.pi * torch.cumsum((diff_phase < -torch.pi).float() - (diff_phase > torch.pi).float(), dim=0)])
+    return unwrapped
+###############################################
