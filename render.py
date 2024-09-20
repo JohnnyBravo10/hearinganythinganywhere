@@ -12,6 +12,8 @@ from scipy.special import sph_harm
 
 import matplotlib.pyplot as plt################
 import time ######################################
+
+import torch.nn.functional as Func
 ##############################
 
 
@@ -519,7 +521,7 @@ class Renderer(nn.Module):
         frequency_response = directivity_amplitude_response*reflection_frequency_response
         
         
-        plt.plot(frequency_response[0].detach())
+        plt.plot(frequency_response[0].cpu().detach())
         plt.title("frequency_response_path0")
         plt.xlabel("Indice")
         plt.ylabel("Valore")
@@ -539,7 +541,10 @@ class Renderer(nn.Module):
         a = time.time()
         max_delay = max(loc.delays)
 
-        frequency_response_with_delays = torch.Tensor().to(self.device)
+
+        #faccio downsampling solo per i moduli
+        frequency_response_with_delays_modules = torch.Tensor().to(self.device)
+        frequency_response_with_delays_phases = torch.Tensor().to(self.device)
         
         ##########qui si potrebbe pensare di ridurre la dimensione di new_freq_response (tutte alla stessa lunghezza)
         ##########perdi risoluzione ma più facile la computazione (altrimenti sono più lunghe anche di quelle gestite nel codice originale)
@@ -616,12 +621,14 @@ class Renderer(nn.Module):
             
             
             ##########################################
-            downsampled_new_freq_resp = torch.zeros(len(pre_bp_freqs)).to(self.device)
+            downsampled_modules = torch.zeros(len(pre_bp_freqs)).to(self.device)
+
+            phases = new_freq_resp.angle()
             
             for i in range(len(pre_bp_freqs)):
                 index = torch.round(pre_bp_freqs[i]*((len(new_freq_resp)-1)/self.nyq)).int()
                 
-                downsampled_new_freq_resp[i] = new_freq_resp[index] 
+                downsampled_modules[i] = new_freq_resp[index].abs() 
             
             ##########################################
 
@@ -635,10 +642,10 @@ class Renderer(nn.Module):
             plt.show()
             '''
             #frequency_response_with_delays = torch.cat((frequency_response_with_delays, new_freq_resp.unsqueeze(0)), dim = 0)
-            frequency_response_with_delays = torch.cat((frequency_response_with_delays, downsampled_new_freq_resp.unsqueeze(0)), dim = 0)################################
+            frequency_response_with_delays_modules = torch.cat((frequency_response_with_delays_modules, downsampled_modules.unsqueeze(0)), dim = 0)################################
+            frequency_response_with_delays_phases = torch.cat((frequency_response_with_delays_phases, phases.unsqueeze(0)), dim = 0)################################
 
-
-        frequency_response= frequency_response_with_delays
+        #frequency_response= frequency_response_with_delays
 
         b = time.time()
         print("time to introduce delays = ", b-a)
@@ -662,7 +669,7 @@ class Renderer(nn.Module):
         azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
         elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
-        directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, len(frequency_response[0]), self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
+        directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, self.RIR_length, self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
         n_orders = len (self.bp_ord_cut_freqs)
 
         cutoffs = self.bp_ord_cut_freqs#.detach() ######################################dubbioo
@@ -679,11 +686,22 @@ class Renderer(nn.Module):
             #print("path: ", i + 1, "of", n_paths)
             #print("incoming direction", azimuths[i], elevations[i])
             if(self.model_transmission or paths_without_transmissions[i]):
-                for j in range(len(frequency_response[0])):
+                freq_samples_contributions = initialize_directional_list_for_beampattern(angular_sensitivity, len(pre_bp_freqs), self.device) ####modules (10 samples)
+                for j in range(len(frequency_response_with_delays_modules[0])):
                     bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], azimuths[i], elevations[i], cutoffs, self.device)############prima di fare downsampling usavo la grid
-                    for direction in directional_freq_responses:
+                    for direction in freq_samples_contributions:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
-                        direction['f_response'][j] += frequency_response[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)############è ok mantenerlo come complesso?
+                        direction['f_response'][j] = frequency_response_with_delays_modules[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)############è ok mantenerlo come complesso?
+
+                for direction in directional_freq_responses:
+                    matching_direction = next((i for i in freq_samples_contributions if i['angle'] == direction['angle']), None)
+                    module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)#interpolazione su contributo stesssa direzione
+                    ph = Func.interpolate(frequency_response_with_delays_phases[i].unsqueeze(0).unsqueeze(0), scale_factor=(self.RIR_length / len(frequency_response_with_delays_phases[i])) , mode = 'linear').squeeze(0).squeeze(0)########squeeze e unsqueeze necessari perchè interpolate vuole almeno 3D
+                    signal_to_add = module*torch.exp(1j*ph)#add the corrispondent phase
+                    direction['f_response'] += signal_to_add
+
+
+
 
         b = time.time()
         print("time to apply beampattern directional attenuation: ", b-a)
@@ -698,25 +716,33 @@ class Renderer(nn.Module):
             TIME DOMAIN
             """
             
-            upsampled_f_response = torch.sum(r['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2) #####################################
-            
-            print("upsampked response: ", upsampled_f_response)
+            #upsampled_f_response = torch.sum(r['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2) #####################################
             
             
-            plt.plot(upsampled_f_response.angle().detach())
-            plt.title("upsampled_f_response")
+            print("f response: ", r['f_response'])
+
+            plt.plot(r['f_response'].abs().detach())
+            plt.title("f_response_module")
             plt.xlabel("Indice")
             plt.ylabel("Valore")
             plt.grid(True)
             plt.show()
             
             
-            out_full = torch.fft.irfft(upsampled_f_response)############provo a mettere questo#########prima dell'interpolzione era r['f_response]
+            plt.plot(r['f_response'].angle().detach())
+            plt.title("f_response_phase")
+            plt.xlabel("Indice")
+            plt.ylabel("Valore")
+            plt.grid(True)
+            plt.show()
+            
+            
+            out_full = torch.fft.irfft(r['f_response'])############provo a mettere questo#########prima dell'interpolzione era r['f_response]
 
             new_window = torch.Tensor(
             scipy.fft.fftshift(scipy.signal.get_window("hamming", len(out_full), fftbins=False))).to(self.device)#necessario creare una nuova window perchè doveva avere la giusta dimensione
 
-            r['t_response'] = out_full #* new_window #########window serve?
+            r['t_response'] = out_full * new_window #########window serve?
 
 
             #r['t_response'] = torch.cat((r['t_response'], torch.zeros(padding).to(self.device))) ##li rendo uguali in lunghezza a quello che sarà la late response######con interpolaizone lo sono già
