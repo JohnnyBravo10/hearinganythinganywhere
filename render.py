@@ -443,7 +443,7 @@ class Renderer(nn.Module):
     ##############################################################################
 
     ##############################################################################
-    # Doesn't support hrirs and toa_perturb
+    # Doesn't support hrirs
     def render_early_with_learned_beampatterns(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """
         Renders the early-stage RIR
@@ -539,7 +539,7 @@ class Renderer(nn.Module):
         """
 
         a = time.time()
-        max_delay = max(loc.delays)
+        max_delay = max(loc.delays) + 100###############perchè c'è toa perturb
 
 
         #faccio downsampling solo per i moduli
@@ -555,8 +555,10 @@ class Renderer(nn.Module):
         self.pre_bp_interpolator = get_interpolator(self.RIR_length, pre_bp_freq_indices).to(self.device)
         ################################################################################
 
-
-        for i in range(len(frequency_response)):
+        if self.toa_perturb:
+            noises = 1*torch.randn(n_paths, 1).to(self.device)##################àmesso 1 invece di7 perchè questo segnale è più corto che nell'originale
+        
+        for i in range(len(frequency_response)): ################range(n_paths) dovrebbe essere
 
             """
             ENTERING THE TIME DOMAIN
@@ -575,8 +577,13 @@ class Renderer(nn.Module):
                 plt.grid(True)
                 plt.show()
             '''
+            
+            if self.toa_perturb:
+                delay = loc.delays[i] + torch.round(noises[i]).int()
+            else:
+                delay = loc.delays[i]
                 
-            del_pad_sig = torch.cat([torch.zeros(loc.delays[i]).to(self.device), sig, torch.zeros(max_delay - loc.delays[i]).to(self.device)])
+            del_pad_sig = torch.cat([torch.zeros(delay).to(self.device), sig, torch.zeros(max_delay - delay).to(self.device)])[:(len(sig) + max_delay)]
             #del_pad_sig = torch.cat([torch.zeros(loc.delays[i]).to(self.device), sig, torch.zeros(self.RIR_length - loc.delays[i]).to(self.device)])##################################
             
             '''
@@ -591,7 +598,7 @@ class Renderer(nn.Module):
 
 
             factor = (2*self.nyq)/343
-            del_pad_sig = del_pad_sig*(factor/(loc.delays[i])) #attenuazione proporzionaloe alla lunghezza del path
+            del_pad_sig = del_pad_sig*(factor/(delay)) #attenuazione proporzionaloe alla lunghezza del path
 
 
             '''
@@ -689,17 +696,56 @@ class Renderer(nn.Module):
                 freq_samples_contributions = initialize_directional_list_for_beampattern(angular_sensitivity, len(pre_bp_freqs), self.device) ####modules (10 samples)
                 for j in range(len(frequency_response_with_delays_modules[0])):
                     bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], azimuths[i], elevations[i], cutoffs, self.device)############prima di fare downsampling usavo la grid
+                    pattern_max = beam_pattern(azimuths[i], elevations[i], bp_weights, n_orders)#normalization factor
+                    
                     for direction in freq_samples_contributions:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
-                        direction['f_response'][j] = frequency_response_with_delays_modules[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)############è ok mantenerlo come complesso?
+                        direction['f_response'][j] = frequency_response_with_delays_modules[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)/pattern_max ############è ok mantenerlo come complesso?
 
                 for direction in directional_freq_responses:
                     matching_direction = next((i for i in freq_samples_contributions if i['angle'] == direction['angle']), None)
                     module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)#interpolazione su contributo stesssa direzione
+                    
+                    ####################################
+                    if (i==0):  
+                        plt.plot(module.abs().detach().cpu())
+                        plt.title("modulo path0")
+                        plt.xlabel("Indice")
+                        plt.ylabel("Valore")
+                        plt.grid(True)
+                        plt.show()
+                    ######################################
+                    
+                    '''
+                    #########################################
+                    
+                    f_response = matching_direction['f_response'].abs()#.unsqueeze(-1)############faccio abs perchè sennò sono formalmente dei complessi
+        
+
+                    # Assumiamo che la dimensione lungo la quale vuoi sommare sia `dim=-2` o `dim=1`
+                    accumulator = torch.zeros(self.RIR_length).to(self.device)  # inizializza con la stessa forma della somma finale
+
+                    # Itera attraverso la penultima dimensione
+                    for i in range(f_response.size(0)):  # se `dim=-2`, accediamo a questa dimensione come `-2`
+                        accumulator += f_response[i] * self.pre_bp_interpolator[i, :]
+
+                    module = accumulator
+
+                    ################################################                    
+                    '''
+                    
+                    
                     ph = Func.interpolate(frequency_response_with_delays_phases[i].unsqueeze(0).unsqueeze(0), scale_factor=(self.RIR_length / len(frequency_response_with_delays_phases[i])) , mode = 'linear').squeeze(0).squeeze(0)########squeeze e unsqueeze necessari perchè interpolate vuole almeno 3D
                     signal_to_add = module*torch.exp(1j*ph)#add the corrispondent phase
                     direction['f_response'] += signal_to_add
-
+                    
+                    '''
+                    ##################################
+                    for i in range(len(direction['f_response'])):
+                        direction['f_response'][i] += module[i]*torch.exp(1j*ph[i])
+                        
+                    ##############################################
+                    '''
 
 
 
@@ -721,7 +767,7 @@ class Renderer(nn.Module):
             
             print("f response: ", r['f_response'])
 
-            plt.plot(r['f_response'].abs().detach())
+            plt.plot(r['f_response'].abs().detach().cpu())
             plt.title("f_response_module")
             plt.xlabel("Indice")
             plt.ylabel("Valore")
@@ -729,7 +775,7 @@ class Renderer(nn.Module):
             plt.show()
             
             
-            plt.plot(r['f_response'].angle().detach())
+            plt.plot(r['f_response'].angle().detach().cpu())
             plt.title("f_response_phase")
             plt.xlabel("Indice")
             plt.ylabel("Valore")
