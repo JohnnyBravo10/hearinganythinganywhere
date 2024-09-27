@@ -520,14 +520,14 @@ class Renderer(nn.Module):
         """
         frequency_response = directivity_amplitude_response*reflection_frequency_response
         
-        
+        '''
         plt.plot(frequency_response[0].cpu().detach())
         plt.title("frequency_response_path0")
         plt.xlabel("Indice")
         plt.ylabel("Valore")
         plt.grid(True)
         plt.show()
-    
+        '''
 
         #print("frequency response", frequency_response)#########################
 
@@ -556,9 +556,9 @@ class Renderer(nn.Module):
         ################################################################################
 
         if self.toa_perturb:
-            noises = 1*torch.randn(n_paths, 1).to(self.device)##################àmesso 1 invece di7 perchè questo segnale è più corto che nell'originale
+            noises = 1*torch.randn(n_paths, 1).to(self.device)##################àmesso 1* invece di7* perchè questo segnale è più corto che nell'originale
         
-        for i in range(len(frequency_response)): ################range(n_paths) dovrebbe essere
+        for i in range(n_paths): ################range(n_paths) dovrebbe essere
 
             """
             ENTERING THE TIME DOMAIN
@@ -617,7 +617,7 @@ class Renderer(nn.Module):
 
             new_freq_resp = torch.fft.rfft(del_pad_sig)
             
-            
+            '''
             if (i==0):  
                 plt.plot(unwrap_phase(new_freq_resp.angle()).detach().cpu())
                 plt.title("new freq resp fase unwrapped")
@@ -625,17 +625,17 @@ class Renderer(nn.Module):
                 plt.ylabel("Valore")
                 plt.grid(True)
                 plt.show()
-            
+            '''
             
             ##########################################
             downsampled_modules = torch.zeros(len(pre_bp_freqs)).to(self.device)
 
             phases = new_freq_resp.angle()
             
-            for i in range(len(pre_bp_freqs)):
-                index = torch.round(pre_bp_freqs[i]*((len(new_freq_resp)-1)/self.nyq)).int()
+            for k in range(len(pre_bp_freqs)):
+                index = torch.round(pre_bp_freqs[k]*((len(new_freq_resp)-1)/self.nyq)).int()
                 
-                downsampled_modules[i] = new_freq_resp[index].abs() 
+                downsampled_modules[k] = new_freq_resp[index].abs() 
             
             ##########################################
 
@@ -679,7 +679,7 @@ class Renderer(nn.Module):
         directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, self.RIR_length, self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
         n_orders = len (self.bp_ord_cut_freqs)
 
-        cutoffs = self.bp_ord_cut_freqs#.detach() ######################################dubbioo
+        cutoffs = self.bp_ord_cut_freqs.detach() ######################################dubbioo
 
 
         #self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
@@ -701,11 +701,15 @@ class Renderer(nn.Module):
                     for direction in freq_samples_contributions:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
                         direction['f_response'][j] = frequency_response_with_delays_modules[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)/pattern_max ############è ok mantenerlo come complesso?
-
+                
+                ph = Func.interpolate(frequency_response_with_delays_phases[i].unsqueeze(0).unsqueeze(0), scale_factor=(self.RIR_length / len(frequency_response_with_delays_phases[i])) , mode = 'linear').squeeze(0).squeeze(0)########squeeze e unsqueeze necessari perchè interpolate vuole almeno 3D
+                #print("phase ok for path: ", i)
+                
                 for direction in directional_freq_responses:
-                    matching_direction = next((i for i in freq_samples_contributions if i['angle'] == direction['angle']), None)
+                    matching_direction = next((r for r in freq_samples_contributions if r['angle'] == direction['angle']), None)
                     module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)#interpolazione su contributo stesssa direzione
                     
+                    '''
                     ####################################
                     if (i==0):  
                         plt.plot(module.abs().detach().cpu())
@@ -715,7 +719,8 @@ class Renderer(nn.Module):
                         plt.grid(True)
                         plt.show()
                     ######################################
-                    
+                    '''
+                    #print("module ok for directoin: ", direction['angle'])
                     '''
                     #########################################
                     
@@ -726,8 +731,8 @@ class Renderer(nn.Module):
                     accumulator = torch.zeros(self.RIR_length).to(self.device)  # inizializza con la stessa forma della somma finale
 
                     # Itera attraverso la penultima dimensione
-                    for i in range(f_response.size(0)):  # se `dim=-2`, accediamo a questa dimensione come `-2`
-                        accumulator += f_response[i] * self.pre_bp_interpolator[i, :]
+                    for l in range(f_response.size(0)):  # se `dim=-2`, accediamo a questa dimensione come `-2`
+                        accumulator += f_response[l] * self.pre_bp_interpolator[l, :]
 
                     module = accumulator
 
@@ -735,14 +740,13 @@ class Renderer(nn.Module):
                     '''
                     
                     
-                    ph = Func.interpolate(frequency_response_with_delays_phases[i].unsqueeze(0).unsqueeze(0), scale_factor=(self.RIR_length / len(frequency_response_with_delays_phases[i])) , mode = 'linear').squeeze(0).squeeze(0)########squeeze e unsqueeze necessari perchè interpolate vuole almeno 3D
                     signal_to_add = module*torch.exp(1j*ph)#add the corrispondent phase
                     direction['f_response'] += signal_to_add
                     
                     '''
                     ##################################
-                    for i in range(len(direction['f_response'])):
-                        direction['f_response'][i] += module[i]*torch.exp(1j*ph[i])
+                    for m in range(len(direction['f_response'])):
+                        direction['f_response'][m] += module[m]*torch.exp(1j*ph[m])
                         
                     ##############################################
                     '''
@@ -765,8 +769,9 @@ class Renderer(nn.Module):
             #upsampled_f_response = torch.sum(r['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2) #####################################
             
             
-            print("f response: ", r['f_response'])
-
+            #print("f response: ", r['f_response'])
+            
+            '''
             plt.plot(r['f_response'].abs().detach().cpu())
             plt.title("f_response_module")
             plt.xlabel("Indice")
@@ -781,7 +786,7 @@ class Renderer(nn.Module):
             plt.ylabel("Valore")
             plt.grid(True)
             plt.show()
-            
+            '''
             
             out_full = torch.fft.irfft(r['f_response'])############provo a mettere questo#########prima dell'interpolzione era r['f_response]
 

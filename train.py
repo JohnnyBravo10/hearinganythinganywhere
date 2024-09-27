@@ -114,6 +114,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
     else:
         epoch = 0
 
+    print("training initialized")
     
     while epoch < n_epochs:
 
@@ -125,6 +126,8 @@ def train_loop(R, Ls, train_gt_audio, D = None,
         rand_idx = np.random.permutation(N_train)
 
         for i in range(N_iter):
+            print("iteration number:", i, "of", N_iter)
+            
             curr_indices = rand_idx[i*batch_size:(i+1)*batch_size]            
             optimizer.zero_grad()
 
@@ -132,14 +135,17 @@ def train_loop(R, Ls, train_gt_audio, D = None,
 
                 ###############c'era solo il secondo caso nell'originale (così capisce da solo se è nel caso direzionale o no)
                 if isinstance(train_gt_audio[idx], np.ndarray):
-                    #print("caso direzionale")
+                    print("caso direzionale, rendering...")
                     output = R.render_RIR_learned_beampattern(Ls[idx])
+                    print("rendering eseguito")
                 else:
                     #print("caso omnidirezionale")
                     output = R.render_RIR(Ls[idx])
                 ###################################################
 
                 loss = loss_fcn(output, train_gt_audio[idx])
+                
+                print("loss function calcolata")
 
                 if pink_noise_supervision and epoch >= pink_start_epoch:
 
@@ -151,11 +157,18 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                     loss += pink_noise_loss*0.2
                 
                 loss.backward()
+                print("loss.backward() eseguito")
                 losses.append(loss.item())
                 print("loss:") 
                 print(loss.item(),flush=True)
 
             optimizer.step()
+            ################
+            for param in R.parameters():
+                print("parameters")
+                print(param.data)
+            ################
+            print("optimizer.step() eseguito")
 
         if save_dir is not None:
             torch.save({
