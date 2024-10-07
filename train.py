@@ -136,7 +136,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 ###############c'era solo il secondo caso nell'originale (così capisce da solo se è nel caso direzionale o no)
                 if isinstance(train_gt_audio[idx], np.ndarray):
                     print("caso direzionale, rendering...")
-                    output = R.render_RIR_learned_beampattern(Ls[idx])
+                    output = R.render_RIR_directional(Ls[idx])
                     print("rendering eseguito")
                 else:
                     #print("caso omnidirezionale")

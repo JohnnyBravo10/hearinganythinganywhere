@@ -4,7 +4,6 @@ import scipy.signal as signal
 
 torch.set_default_dtype(torch.float32)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#device = "cpu"
 
 def safe_log(x, eps=1e-7):
     """
@@ -18,7 +17,7 @@ def get_stft(x, n_fft, hop_length=None):
     """
     Returns the stft of x.
     """
-    return torch.stft(x.to(device),  ##########AGGIUNTO TO DEVICE
+    return torch.stft(x.to(device),  ########## added .to(device)
                       n_fft=n_fft,
                       hop_length = hop_length,
                       window=torch.hann_window(n_fft).to(device),
@@ -79,12 +78,12 @@ def training_loss(x,y,cutoff=9000, eps=1e-6):
     tiny_hop_loss = L1_and_Log(x[...,:cutoff], y[...,:cutoff], n_fft=256, eps=eps, hop_length=1)
     return loss1 + loss2 + loss3 + loss4 + tiny_hop_loss
 
-#########################################################à
+###############################################################################################################
 def simplified_loss(x,y,cutoff=9000, eps=1e-6):
     """
     Training Loss
 
-    Computes spectral L1 and log spectral L1 loss
+    Computes spectral L1 and log spectral L1 loss only with two windows
 
     Parameters
     ----------
@@ -99,10 +98,10 @@ def simplified_loss(x,y,cutoff=9000, eps=1e-6):
     loss1 = L1_and_Log(x,y, n_fft=512, eps=eps)
     loss4 = L1_and_Log(x,y, n_fft=4096, eps=eps)
     return loss1 + loss4 
-###########################################################
+#####################################################################################################################
 
-###########################################################
-def training_loss_considering_directionality(x,y, cutoff =9000, eps=1e-6):
+######################################################################################################################
+def training_loss_directional_0_old_version(x,y, cutoff =9000, eps=1e-6):
     """
     Training Loss considering directionality
 
@@ -135,10 +134,10 @@ def training_loss_considering_directionality(x,y, cutoff =9000, eps=1e-6):
 
     return loss
 
-##############################################################
+#################################################################################################################################
 
-###########################################################
-def training_loss_for_learned_bp(x,y, cutoff =9000, eps=1e-6):
+###########################################################################################################################
+def training_loss_directional(x,y, cutoff =9000, eps=1e-6):
     """
     Training Loss considering directionality
 
@@ -165,7 +164,7 @@ def training_loss_for_learned_bp(x,y, cutoff =9000, eps=1e-6):
 
     return loss
 
-##############################################################
+##########################################################################################################################
 
 """
 Evaluation Metrics

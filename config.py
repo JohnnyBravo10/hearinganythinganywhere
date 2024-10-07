@@ -24,9 +24,9 @@ music_files_for_trajectory_path = "/viscam/projects/audio_nerf/code_release/exam
 # Path to HRIRs
 HRIR_dataset_dir = "/viscam/projects/audio_nerf/code_release/HRIRs"
 
-#####################ààà
+#######################################
 prova_dataset_path= "../prova_dataset"
-###########################
+##########################################
 
 
 

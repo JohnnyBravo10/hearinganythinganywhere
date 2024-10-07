@@ -287,7 +287,7 @@ class Renderer(nn.Module):
     ######################################
 
     ##############################################################################
-    def render_early_with_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+    def render_early_with_directions_oldVersion(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """
         Renders the early-stage RIR
 
@@ -444,7 +444,7 @@ class Renderer(nn.Module):
 
     ##############################################################################
     # Doesn't support hrirs
-    def render_early_with_learned_beampatterns(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+    def render_early_directional(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """
         Renders the early-stage RIR
 
@@ -836,7 +836,7 @@ class Renderer(nn.Module):
     
     ###############################################################################
 
-    def render_RIR_by_directions(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+    def render_RIR_by_directions_oldVersion(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """Renders the RIR."""
         frequency_list = self.render_early_with_directions(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivities= angular_sensitivities, listener_forward=listener_forward, listener_left=listener_left)
 
@@ -862,26 +862,26 @@ class Renderer(nn.Module):
 
     ###############################################################################
 
-    def render_RIR_learned_beampattern(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+    def render_RIR_directional(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """Renders the RIR."""
-        directional_freq_responses = self.render_early_with_learned_beampatterns(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
+        directional_responses = self.render_early_directional(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
 
-        for r in directional_freq_responses:
+        for r in directional_responses:
             while torch.sum(torch.isnan(r['t_response'])) > 0: # Check for numerical issues
                 print("nan found - trying again")
-                directional_freq_responses = self.render_early_with_learned_beampatterns(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
+                directional_responses = self.render_early_directional(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
 
         late = self.render_late(loc=loc)
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
 
-        signal_to_add = late / len(directional_freq_responses)
+        signal_to_add = late / len(directional_responses)
     
-        for r in directional_freq_responses:    
+        for r in directional_responses:    
             
             r['t_response'] = signal_to_add*self.spline + r['t_response']*(1-self.spline)
 
 
-        return directional_freq_responses
+        return directional_responses
     ###################################################################################
 
     
