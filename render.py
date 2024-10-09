@@ -99,10 +99,10 @@ class Renderer(nn.Module):
         self.IK = get_time_interpolator(n_target=RIR_length, indices=torch.tensor(spline_indices)).to(self.device)   
         self.spline_values = nn.Parameter(torch.linspace(-5, 5, self.n_spline))
 
-        ######################################################
+        ##########################################################################################
         # Beampattern orders cutoff frequencies
         self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([70, 400, 800, 1000, 1300, 2000]))
-        #######################################################
+        ##########################################################################################
 
     def init_early(self):
         ##################### A si potrebbe inizializzare in modo diverso conoscendo i materiali di cui sono fatte le superfici ###################
@@ -532,7 +532,7 @@ class Renderer(nn.Module):
         #print("frequency response", frequency_response)#########################
 
         b = time.time()
-        print("time to initializie freq resp = ", b-a)
+        #print("time to initializie freq resp = ", b-a)
 
         """
         Introducing delays ####################################################
@@ -655,7 +655,7 @@ class Renderer(nn.Module):
         #frequency_response= frequency_response_with_delays
 
         b = time.time()
-        print("time to introduce delays = ", b-a)
+        #print("time to introduce delays = ", b-a)
 
         #print("frequency response shape", frequency_response.shape)
         
@@ -685,7 +685,7 @@ class Renderer(nn.Module):
         #self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
 
         b = time.time()
-        print("time to compute az and ele and set up for the beampatterns: ", b-a)
+        #print("time to compute az and ele and set up for the beampatterns: ", b-a)
 
         a = time.time()
 
@@ -754,7 +754,7 @@ class Renderer(nn.Module):
 
 
         b = time.time()
-        print("time to apply beampattern directional attenuation: ", b-a)
+        #print("time to apply beampattern directional attenuation: ", b-a)
 
 
         a = time.time()
@@ -805,7 +805,7 @@ class Renderer(nn.Module):
 
             b = time.time()
 
-        print("time to pad, anti-transform, convolve with source ir, apply decay: ", b-a)
+        #print("time to pad, anti-transform, convolve with source ir, apply decay: ", b-a)
 
         return directional_freq_responses
     

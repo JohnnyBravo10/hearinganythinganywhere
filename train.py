@@ -108,7 +108,8 @@ def train_loop(R, Ls, train_gt_audio, D = None,
     if continue_train:
         losses = list(np.load(os.path.join(save_dir,"losses.npy")))
         N_train = len(Ls)
-        epoch = int(len(losses)/(int(N_train)))
+        epoch = int(len(losses)/(int(N_train)))######è un po' un'approssimazione ma ok (se si ha cambiato batch size o N_train per sicurezza si può fare così)
+
         print("CURRENT EPOCH")
         print(epoch)
     else:
@@ -150,9 +151,22 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 if pink_noise_supervision and epoch >= pink_start_epoch:
 
                     print("Generating Pink Noise")
-                    pink_noise = generate_pink_noise(5*fs, fs=fs)
-                    convolved_pred = F.fftconvolve(output, pink_noise)[...,:5*fs]
-                    convolved_gt =  F.fftconvolve(train_gt_audio[idx,:R.RIR_length], pink_noise)[...,:5*fs]
+                    pink_noise = generate_pink_noise(5*fs, fs=fs).to(device)######aggiunto .to(device)
+                    ###########################################################################################
+                    if isinstance(train_gt_audio[idx], np.ndarray):
+                        convolved_pred = output.deepcopy()#################si può probabilmente ottimizzare e fare in altro modooo
+                        for direction in convolved_pred:
+                            direction['t_response'] = F.fftconvolve(direction['t_response'].to(device), pink_noise)[...,:5*fs]
+                            
+                        convolved_gt = train_gt_audio[idx].deepcopy()
+                        for direction in convolved_gt:
+                            direction['t_response'] = F.fftconvolve(direction['t_response'].to(device), pink_noise)[...,:5*fs] #############forse ci va [:R.RIR_length] anche qua?
+                        
+                    else:
+                        convolved_pred = F.fftconvolve(output, pink_noise)[...,:5*fs]
+                        convolved_gt =  F.fftconvolve(train_gt_audio[idx,:R.RIR_length], pink_noise)[...,:5*fs]
+                    #############################################à################################################
+                    
                     pink_noise_loss = loss_fcn(convolved_pred, convolved_gt)
                     loss += pink_noise_loss*0.2
                 
