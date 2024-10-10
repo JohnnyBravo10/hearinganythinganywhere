@@ -9,6 +9,8 @@ import binauralize
 import rooms.dataset
 import argparse
 
+import copy
+
 """
 train.py is used for training and evaluation.
 """
@@ -114,7 +116,14 @@ def train_loop(R, Ls, train_gt_audio, D = None,
         print(epoch)
     else:
         epoch = 0
-
+        
+    ####################################################################################################
+    if pink_noise_supervision:
+        convolved_pred = render.initialize_directional_list_for_beampattern(60, R.RIR_length, device)
+        convolved_gt = render.initialize_directional_list_for_beampattern(60, R.RIR_length, device)
+    ####################################################################################################
+        
+        
     print("training initialized")
     
     while epoch < n_epochs:
@@ -154,13 +163,13 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                     pink_noise = generate_pink_noise(5*fs, fs=fs).to(device)######aggiunto .to(device)
                     ###########################################################################################
                     if isinstance(train_gt_audio[idx], np.ndarray):
-                        convolved_pred = output.deepcopy()#################si può probabilmente ottimizzare e fare in altro modooo
                         for direction in convolved_pred:
-                            direction['t_response'] = F.fftconvolve(direction['t_response'].to(device), pink_noise)[...,:5*fs]
+                            matching_direction = next( d for d in output if d['angle'] == direction['angle'])
+                            direction['t_response'] = F.fftconvolve(matching_direction['t_response'].to(device), pink_noise)[...,:5*fs]
                             
-                        convolved_gt = train_gt_audio[idx].deepcopy()
                         for direction in convolved_gt:
-                            direction['t_response'] = F.fftconvolve(direction['t_response'].to(device), pink_noise)[...,:5*fs] #############forse ci va [:R.RIR_length] anche qua?
+                            matching_direction = next( e for e in train_gt_audio[idx] if e['angle'] == direction['angle'])
+                            direction['t_response'] = F.fftconvolve(matching_direction['t_response'].to(device), pink_noise)[...,:5*fs] #############forse ci va [:R.RIR_length] anche qua?
                         
                     else:
                         convolved_pred = F.fftconvolve(output, pink_noise)[...,:5*fs]
@@ -177,11 +186,11 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 print(loss.item(),flush=True)
 
             optimizer.step()
-            ################
+            ############################
             for param in R.parameters():
                 print("parameters")
                 print(param.data)
-            ################
+            ##########################
             print("optimizer.step() eseguito")
 
         if save_dir is not None:

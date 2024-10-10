@@ -415,7 +415,7 @@ class Renderer(nn.Module):
         azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
         elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
-        RIR_early_by_direction = initialize_directional_list(angular_sensitivities, self.RIR_length, device= self.device)
+        RIR_early_by_direction = _oldVersion(angular_sensitivities, self.RIR_length, device= self.device)
         for i in range(n_paths):
             for j in range(len(RIR_early_by_direction)):
 
@@ -1050,7 +1050,7 @@ def safe_log(x, eps=1e-9):
 
 ###########################################################################
 
-def initialize_directional_list(angular_sensitivities, signal_length, device):
+def initialize_directional_list_oldVersion(angular_sensitivities, signal_length, device):
     frequency_range_list = []
     for characteristic in angular_sensitivities:
         frequency_dict = dict()
@@ -1079,7 +1079,7 @@ def initialize_directional_list(angular_sensitivities, signal_length, device):
 
 #############################################################################
 
-###########################################################################
+######################################################################################################################à
 
 def initialize_directional_list_for_beampattern(angular_sensitivity, n_freq_samples, device):
 
@@ -1102,7 +1102,7 @@ def initialize_directional_list_for_beampattern(angular_sensitivity, n_freq_samp
 
     return frequency_responses_list
 
-#############################################################################
+########################################################################################################################
 
 '''
 #####################################################################
