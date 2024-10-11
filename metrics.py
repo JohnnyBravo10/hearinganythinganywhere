@@ -17,7 +17,7 @@ def get_stft(x, n_fft, hop_length=None):
     """
     Returns the stft of x.
     """
-    return torch.stft(x.to(device),  ########## added .to(device)
+    return torch.stft(x.to(device),  ########## original didn't have .to(device)
                       n_fft=n_fft,
                       hop_length = hop_length,
                       window=torch.hann_window(n_fft).to(device),
@@ -79,6 +79,7 @@ def training_loss(x,y,cutoff=9000, eps=1e-6):
     return loss1 + loss2 + loss3 + loss4 + tiny_hop_loss
 
 ###############################################################################################################
+###old method
 def simplified_loss(x,y,cutoff=9000, eps=1e-6):
     """
     Training Loss

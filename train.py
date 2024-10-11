@@ -9,8 +9,6 @@ import binauralize
 import rooms.dataset
 import argparse
 
-import copy
-
 """
 train.py is used for training and evaluation.
 """
@@ -92,7 +90,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
         makedir_if_needed(save_dir)
 
 
-    #train_gt_audio = torch.Tensor(train_gt_audio).cuda()#######################era così nell'originale
+    #train_gt_audio = torch.Tensor(train_gt_audio).cuda()###############in the original code
 
 
     # Lower learning rate on residual
@@ -106,21 +104,28 @@ def train_loop(R, Ls, train_gt_audio, D = None,
 
     losses = []
     
-    #if args.continue_train: ######################l'originale era così, ma args non serve!!!!!!
+    #if args.continue_train: ######################this was the original version, but args. is not needed!
     if continue_train:
         losses = list(np.load(os.path.join(save_dir,"losses.npy")))
         N_train = len(Ls)
-        epoch = int(len(losses)/(int(N_train)))######è un po' un'approssimazione ma ok (se si ha cambiato batch size o N_train per sicurezza si può fare così)
+        epoch = int(len(losses)/(int(N_train)))######N_train is correct bif N_train is divisible by batch_size
 
         print("CURRENT EPOCH")
         print(epoch)
     else:
         epoch = 0
-        
+    
+    if isinstance(train_gt_audio[0], np.ndarray):
+        azimuths = []
+        elevations = []
+        for direction in train_gt_audio[0]:
+            azimuths.append(direction['angle'][0])
+            elevations.append(direction['angle'][1])
+            
     ####################################################################################################
-    if pink_noise_supervision:
-        convolved_pred = render.initialize_directional_list_for_beampattern(60, R.RIR_length, device)
-        convolved_gt = render.initialize_directional_list_for_beampattern(60, R.RIR_length, device)
+    if pink_noise_supervision and isinstance(train_gt_audio[0], np.ndarray): #######if pink noise needeed (only useful for the directional case)
+        convolved_pred = render.initialize_directional_list(azimuths, elevations, 1, device)
+        convolved_gt = render.initialize_directional_list(azimuths, elevations, 1, device)
     ####################################################################################################
         
         
@@ -143,13 +148,13 @@ def train_loop(R, Ls, train_gt_audio, D = None,
 
             for idx in curr_indices:
 
-                ###############c'era solo il secondo caso nell'originale (così capisce da solo se è nel caso direzionale o no)
+                ###############the original code had only the second case
                 if isinstance(train_gt_audio[idx], np.ndarray):
                     print("caso direzionale, rendering...")
-                    output = R.render_RIR_directional(Ls[idx])
+                    output = R.render_RIR_directional(Ls[idx], azimuths, elevations)
                     print("rendering eseguito")
                 else:
-                    #print("caso omnidirezionale")
+                    #print("Omnidirectional case")
                     output = R.render_RIR(Ls[idx])
                 ###################################################
 
@@ -160,7 +165,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 if pink_noise_supervision and epoch >= pink_start_epoch:
 
                     print("Generating Pink Noise")
-                    pink_noise = generate_pink_noise(5*fs, fs=fs).to(device)######aggiunto .to(device)
+                    pink_noise = generate_pink_noise(5*fs, fs=fs).to(device)######original code didn't have .to(device)
                     ###########################################################################################
                     if isinstance(train_gt_audio[idx], np.ndarray):
                         for direction in convolved_pred:
@@ -169,7 +174,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                             
                         for direction in convolved_gt:
                             matching_direction = next( e for e in train_gt_audio[idx] if e['angle'] == direction['angle'])
-                            direction['t_response'] = F.fftconvolve(matching_direction['t_response'].to(device), pink_noise)[...,:5*fs] #############forse ci va [:R.RIR_length] anche qua?
+                            direction['t_response'] = F.fftconvolve(matching_direction['t_response'].to(device), pink_noise)[...,:5*fs] #############[:R.RIR_length] might be needed?? 
                         
                     else:
                         convolved_pred = F.fftconvolve(output, pink_noise)[...,:5*fs]

@@ -127,7 +127,7 @@ def line_surface_intersect(line_start, line_end, surface):
     return d,intersection_point, inside
 
 
-def find_reflection_points(surfaces, source, dest, plot=False, save_path=None): #?????metodo non chiaro???????
+def find_reflection_points(surfaces, source, dest, plot=False, save_path=None): #not clear how this method works
     """
     Given a set of surfaces, determines if there is a reflection path from the given source to
     the given destination that reflects off each of the surfaces in order.
@@ -235,7 +235,7 @@ def find_reflection_points(surfaces, source, dest, plot=False, save_path=None): 
         else:
             fig.show()
 
-    #Sum of segments sould equal full distance
+    #Sum of segments should equal full distance
     if abs(np.sum(ds) - full_distance)>0.001:
         return None
 
@@ -459,7 +459,6 @@ def get_reflections_transmissions_and_delays(
     else:
         print("No Axials to Compute")
 
-    #print(all_indices)
     print("Total Considered Paths, after Axial:\t" + str(len(all_indices)))
     reflection_path_indices = []
     transmission_path_indices = []
@@ -468,7 +467,7 @@ def get_reflections_transmissions_and_delays(
     end_directions = []
     points_for_all_paths = []
 
-    ###############################?????????must be checked if the direct path exists
+    ###############################must be checked if the direct path exists #not checked in the original version 
     
     if direct_path_check(source, dest, surfaces):
         #Direct Path
@@ -484,7 +483,7 @@ def get_reflections_transmissions_and_delays(
 
     
 
-    ###########################################
+    #######################################################################àà
 
     #Checks each candidate reflection path for validity, and finds transmission surfaces
     count=0

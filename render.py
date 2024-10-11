@@ -10,9 +10,6 @@ import trace1
 #############################
 from scipy.special import sph_harm
 
-import matplotlib.pyplot as plt################
-import time ######################################
-
 import torch.nn.functional as Func
 ##############################
 
@@ -66,7 +63,6 @@ class Renderer(nn.Module):
 
         # Device
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        #self.device = "cpu" 
         self.nyq = fs/2
 
         # Arguments
@@ -100,12 +96,12 @@ class Renderer(nn.Module):
         self.spline_values = nn.Parameter(torch.linspace(-5, 5, self.n_spline))
 
         ##########################################################################################
-        # Beampattern orders cutoff frequencies
+        # Beampattern orders cutoff frequencies (for the moment this parameter is detached during learning, not learned)
         self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([70, 400, 800, 1000, 1300, 2000]))
         ##########################################################################################
 
     def init_early(self):
-        ##################### A si potrebbe inizializzare in modo diverso conoscendo i materiali di cui sono fatte le superfici ###################
+        ##################### A could be initialized in a different way exploiting a priori knowledge on the surfaces materials 
          
         # Initializing "Energy Vector", which stores the coefficients for each surface
         if self.model_transmission:
@@ -118,12 +114,12 @@ class Renderer(nn.Module):
         self.energy_vector = nn.Parameter(A)
 
         # Setting up Frequency responses
-        n_freq_samples = 1 + 2 ** int(math.ceil(math.log(self.filter_length, 2))) #????????why filter length
-        #print("n_freq_samples", n_freq_samples)
+        n_freq_samples = 1 + 2 ** int(math.ceil(math.log(self.filter_length, 2))) # is there any particular reason to choose filter_length?
+        
         self.freq_grid = torch.linspace(0.0, self.nyq, n_freq_samples)
-        #print("self.freq_grid", self.freq_grid)
+        
         surface_freq_indices = torch.round(self.surface_freqs*((n_freq_samples-1)/self.nyq)).int() 
-        #print("self.surfaces_freq_indices", surface_freq_indices)
+        
 
         self.surface_freq_interpolator = get_interpolator(n_freq_target=n_freq_samples, 
                                                           freq_indices=surface_freq_indices).to(self.device)
@@ -193,12 +189,12 @@ class Renderer(nn.Module):
         # gains_profile is n_paths * n_surfaces * 2 * num_frequencies * 1
         if not self.model_transmission:  
             paths_without_transmissions = torch.sum(loc.transmission_mask, dim=-1) == 0
-            #print("paths_without_transmissions",paths_without_transmissions, len(paths_without_transmissions))
+            
         gains_profile = (amplitudes[:,0:2,:].unsqueeze(0)**mask).unsqueeze(-1)
 
         # reflection_frequency_response = n_paths * n_freq_samples
         reflection_frequency_response = torch.prod(torch.prod(
-            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########??????perché moltiplica coefficiente riflessione e assorbimento?
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear????
 
 
         """
@@ -256,18 +252,6 @@ class Renderer(nn.Module):
             if not self.model_transmission:
                 reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
 
-            ######################################################
-            '''
-            if (i==0):  
-                plt.plot(reflection_kernels[i].detach().cpu())
-                plt.title("Plot del pad sig")
-                plt.xlabel("Indice")
-                plt.ylabel("Valore")
-                plt.grid(True)
-                plt.show() 
-            '''
-            #######################################################
-
         if hrirs is not None:
             reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
             reflection_kernels = F.fftconvolve(reflection_kernels, hrirs.to(self.device)) # hrirs are n_paths x 2 x length
@@ -283,6 +267,7 @@ class Renderer(nn.Module):
         return RIR_early
     
     ######################################
+    #not used anymore
     angular_sensitivities_em64=[{'frequency_range': (20, 1000), 'angle': 90}, {'frequency_range': (1000, 5000), 'angle': 60}, {'frequency_range': (5000, 20000), 'angle': 45}]
     ######################################
 
@@ -329,7 +314,7 @@ class Renderer(nn.Module):
 
         # reflection_frequency_response = n_paths * n_freq_samples
         reflection_frequency_response = torch.prod(torch.prod(
-            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########??????perché moltiplica coefficiente riflessione e assorbimento?
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear?
 
 
         """
@@ -390,15 +375,6 @@ class Renderer(nn.Module):
         if hrirs is not None:
             reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
             reflection_kernels = F.fftconvolve(reflection_kernels, hrirs.to(self.device)) # hrirs are n_paths x 2 x length
-        '''
-            RIR_early = torch.sum(reflection_kernels, axis=0) 
-            RIR_early = F.fftconvolve(
-                (self.source_response - torch.mean(self.source_response)).view(1,-1), RIR_early)[...,:self.RIR_length]
-        else:
-            RIR_early = torch.sum(reflection_kernels, axis=0)
-            RIR_early = F.fftconvolve(
-                self.source_response - torch.mean(self.source_response), RIR_early)[:self.RIR_length]
-        '''
 
         norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
         incoming_listener_directions = -loc.end_directions_normalized/norms
@@ -415,23 +391,16 @@ class Renderer(nn.Module):
         azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
         elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
-        RIR_early_by_direction = _oldVersion(angular_sensitivities, self.RIR_length, device= self.device)
+        RIR_early_by_direction = initialize_directional_list_oldVersion(angular_sensitivities, self.RIR_length, device= self.device)
         for i in range(n_paths):
             for j in range(len(RIR_early_by_direction)):
-
-                #print("range considerato", RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1])
-                #print("direzione di arrivo", azimuths[i], elevations[i])
                 
                 beampattern_weights = calculate_weights(azimuths[i], elevations[i], int(180/angular_sensitivities[j]['angle']))
                 signal_to_add = apply_bandpass_filter(reflection_kernels[i], RIR_early_by_direction[j]['frequency_range'][0], RIR_early_by_direction[j]['frequency_range'][1], fs = self.nyq * 2)
                 pattern_max = beam_pattern(azimuths[i], elevations[i], beampattern_weights, int(180/angular_sensitivities[j]['angle']))
                 
                 for response in RIR_early_by_direction[j]['responses']:
-                    #print("beampattern parameters,", response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle']))
                     response['response'] += signal_to_add * beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max
-                    #print("direzioni considerate", response['direction'][0], response['direction'][1],)
-                    #print("attenuazione", beam_pattern(response['direction'][0], response['direction'][1], beampattern_weights, int(180/angular_sensitivities[j]['angle'])) / pattern_max)
-                
 
         for interval in RIR_early_by_direction:
             for r in interval['responses']:
@@ -444,7 +413,7 @@ class Renderer(nn.Module):
 
     ##############################################################################
     # Doesn't support hrirs
-    def render_early_directional(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+    def render_early_directional(self, loc, azimuths, elevations, source_axis_1=None, source_axis_2=None, listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """
         Renders the early-stage RIR
 
@@ -471,8 +440,6 @@ class Renderer(nn.Module):
         Computing Reflection Response
         """
 
-        a = time.time() ################################
-
         n_paths = loc.delays.shape[0]
         energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
         amplitudes = torch.sqrt(energy_coeffs).to(self.device)
@@ -488,7 +455,7 @@ class Renderer(nn.Module):
 
         # reflection_frequency_response = n_paths * n_freq_samples
         reflection_frequency_response = torch.prod(torch.prod(
-            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########??????perché moltiplica coefficiente riflessione e assorbimento?
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear??
 
 
         """
@@ -520,45 +487,31 @@ class Renderer(nn.Module):
         """
         frequency_response = directivity_amplitude_response*reflection_frequency_response
         
-        '''
-        plt.plot(frequency_response[0].cpu().detach())
-        plt.title("frequency_response_path0")
-        plt.xlabel("Indice")
-        plt.ylabel("Valore")
-        plt.grid(True)
-        plt.show()
-        '''
-
-        #print("frequency response", frequency_response)#########################
-
-        b = time.time()
-        #print("time to initializie freq resp = ", b-a)
 
         """
         Introducing delays ####################################################
         """
 
-        a = time.time()
-        max_delay = max(loc.delays) + 100###############perchè c'è toa perturb
+        max_delay = max(loc.delays) + 100 ############### +100 to not lose information after toa perturb
 
 
-        #faccio downsampling solo per i moduli
+        # Module downsample
+        
         frequency_response_with_delays_modules = torch.Tensor().to(self.device)
         frequency_response_with_delays_phases = torch.Tensor().to(self.device)
         
-        ##########qui si potrebbe pensare di ridurre la dimensione di new_freq_response (tutte alla stessa lunghezza)
-        ##########perdi risoluzione ma più facile la computazione (altrimenti sono più lunghe anche di quelle gestite nel codice originale)
-        ##########tipo così
-        pre_bp_freqs = torch.Tensor([32, 45, 63, 90, 125, 180, 250, 360, 500, 720, 1000, 1400, 2000, 2800, 4000, 5600, 8000, 12000, 16000])#####################si può ,mettere tra i parametri iniziali
+        #might put this in the initial parameters
+        #pre_bp_freqs = torch.Tensor([32, 45, 63, 90, 125, 180, 250, 360, 500, 720, 1000, 1400, 2000, 2800, 4000, 5600, 8000, 12000, 16000])
+        pre_bp_freqs = torch.Tensor([32, 63, 125, 250,  500, 1000, 2000, 4000, 8000, 16000])
         
         pre_bp_freq_indices = torch.round(pre_bp_freqs*((self.RIR_length-1)/self.nyq)).int() 
         self.pre_bp_interpolator = get_interpolator(self.RIR_length, pre_bp_freq_indices).to(self.device)
         ################################################################################
 
         if self.toa_perturb:
-            noises = 1*torch.randn(n_paths, 1).to(self.device)##################àmesso 1* invece di7* perchè questo segnale è più corto che nell'originale
+            noises = 1*torch.randn(n_paths, 1).to(self.device)################## 1* instead of 7* might be better (the signal is shorter than the non-directional caase) 
         
-        for i in range(n_paths): ################range(n_paths) dovrebbe essere
+        for i in range(n_paths):
 
             """
             ENTERING THE TIME DOMAIN
@@ -568,64 +521,23 @@ class Renderer(nn.Module):
 
             sig = torch.fft.irfft(fx2)
             
-            '''
-            if (i==0):  
-                plt.plot(sig.detach().cpu())
-                plt.title("antitrasformata")
-                plt.xlabel("Indice")
-                plt.ylabel("Valore")
-                plt.grid(True)
-                plt.show()
-            '''
-            
             if self.toa_perturb:
                 delay = loc.delays[i] + torch.round(noises[i]).int()
             else:
                 delay = loc.delays[i]
                 
             del_pad_sig = torch.cat([torch.zeros(delay).to(self.device), sig, torch.zeros(max_delay - delay).to(self.device)])[:(len(sig) + max_delay)]
-            #del_pad_sig = torch.cat([torch.zeros(loc.delays[i]).to(self.device), sig, torch.zeros(self.RIR_length - loc.delays[i]).to(self.device)])##################################
-            
-            '''
-            if (i==0):  
-                plt.plot(del_pad_sig.detach().cpu())
-                plt.title("Seganle paddato e ritardato")
-                plt.xlabel("Indice")
-                plt.ylabel("Valore")
-                plt.grid(True)
-                plt.show()
-            '''
+            #del_pad_sig = torch.cat([torch.zeros(loc.delays[i]).to(self.device), sig, torch.zeros(self.RIR_length - loc.delays[i]).to(self.device)])
 
 
             factor = (2*self.nyq)/343
-            del_pad_sig = del_pad_sig*(factor/(delay)) #attenuazione proporzionaloe alla lunghezza del path
+            del_pad_sig = del_pad_sig*(factor/(delay)) #attenuation proportional to path length
 
-
-            '''
-            if (i==0):  
-                plt.plot(del_pad_sig.detach().cpu())
-                plt.title("segnale attenuato")
-                plt.xlabel("Indice")
-                plt.ylabel("Valore")
-                plt.grid(True)
-                plt.show()
-            '''
-            
             """
             BACK TO THE FREQUENCY DOMAIN
             """
 
             new_freq_resp = torch.fft.rfft(del_pad_sig)
-            
-            '''
-            if (i==0):  
-                plt.plot(unwrap_phase(new_freq_resp.angle()).detach().cpu())
-                plt.title("new freq resp fase unwrapped")
-                plt.xlabel("Indice")
-                plt.ylabel("Valore")
-                plt.grid(True)
-                plt.show()
-            '''
             
             ##########################################
             downsampled_modules = torch.zeros(len(pre_bp_freqs)).to(self.device)
@@ -639,27 +551,11 @@ class Renderer(nn.Module):
             
             ##########################################
 
-
-            '''
-            plt.plot(torch.fft.irfft(new_freq_resp).detach())
-            plt.title("Plot after antitransforming")
-            plt.xlabel("Indice")
-            plt.ylabel("Valore")
-            plt.grid(True)
-            plt.show()
-            '''
-            #frequency_response_with_delays = torch.cat((frequency_response_with_delays, new_freq_resp.unsqueeze(0)), dim = 0)
-            frequency_response_with_delays_modules = torch.cat((frequency_response_with_delays_modules, downsampled_modules.unsqueeze(0)), dim = 0)################################
-            frequency_response_with_delays_phases = torch.cat((frequency_response_with_delays_phases, phases.unsqueeze(0)), dim = 0)################################
+            frequency_response_with_delays_modules = torch.cat((frequency_response_with_delays_modules, downsampled_modules.unsqueeze(0)), dim = 0)
+            frequency_response_with_delays_phases = torch.cat((frequency_response_with_delays_phases, phases.unsqueeze(0)), dim = 0)
 
         #frequency_response= frequency_response_with_delays
 
-        b = time.time()
-        #print("time to introduce delays = ", b-a)
-
-        #print("frequency response shape", frequency_response.shape)
-        
-        a = time.time()
 
         norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
         incoming_listener_directions = -loc.end_directions_normalized/norms
@@ -676,136 +572,56 @@ class Renderer(nn.Module):
         azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
         elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
-        directional_freq_responses = initialize_directional_list_for_beampattern(angular_sensitivity, self.RIR_length, self.device)############secondo parametro ok se c'è almeno un path (si potra scrivere pù elegant tipo con dim=1)
+        directional_freq_responses = initialize_directional_list(azimuths, elevations, self.RIR_length, self.device)
         n_orders = len (self.bp_ord_cut_freqs)
 
-        cutoffs = self.bp_ord_cut_freqs.detach() ######################################dubbioo
-
-
-        #self.freq_grid = torch.linspace(0.0, self.nyq, len(frequency_response[0]))########################################
-
-        b = time.time()
-        #print("time to compute az and ele and set up for the beampatterns: ", b-a)
-
-        a = time.time()
+        cutoffs = self.bp_ord_cut_freqs.detach() #########detached for the moment (generates NaNs and not so important now with module interpolation)
 
         for i in range(n_paths):
             #print("path: ", i + 1, "of", n_paths)
             #print("incoming direction", azimuths[i], elevations[i])
             if(self.model_transmission or paths_without_transmissions[i]):
-                freq_samples_contributions = initialize_directional_list_for_beampattern(angular_sensitivity, len(pre_bp_freqs), self.device) ####modules (10 samples)
+                freq_samples_contributions = initialize_directional_list(azimuths, elevations, len(pre_bp_freqs), self.device) ####modules (10 samples)
                 for j in range(len(frequency_response_with_delays_modules[0])):
-                    bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], azimuths[i], elevations[i], cutoffs, self.device)############prima di fare downsampling usavo la grid
+                    bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], azimuths[i], elevations[i], cutoffs, self.device)
                     pattern_max = beam_pattern(azimuths[i], elevations[i], bp_weights, n_orders)#normalization factor
                     
                     for direction in freq_samples_contributions:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
-                        direction['f_response'][j] = frequency_response_with_delays_modules[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)/pattern_max ############è ok mantenerlo come complesso?
+                        direction['f_response'][j] = frequency_response_with_delays_modules[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)/pattern_max ############is it ok use complexes?
                 
-                ph = Func.interpolate(frequency_response_with_delays_phases[i].unsqueeze(0).unsqueeze(0), scale_factor=(self.RIR_length / len(frequency_response_with_delays_phases[i])) , mode = 'linear').squeeze(0).squeeze(0)########squeeze e unsqueeze necessari perchè interpolate vuole almeno 3D
+                ph = Func.interpolate(frequency_response_with_delays_phases[i].unsqueeze(0).unsqueeze(0), scale_factor=(self.RIR_length / len(frequency_response_with_delays_phases[i])) , mode = 'linear').squeeze(0).squeeze(0)########squeeze e unsqueeze needed beacause interpolate receives 3D
                 #print("phase ok for path: ", i)
                 
                 for direction in directional_freq_responses:
                     matching_direction = next((r for r in freq_samples_contributions if r['angle'] == direction['angle']), None)
-                    module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)#interpolazione su contributo stesssa direzione
+                    module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)#interpolation on same direction contributions
                     
-                    '''
-                    ####################################
-                    if (i==0):  
-                        plt.plot(module.abs().detach().cpu())
-                        plt.title("modulo path0")
-                        plt.xlabel("Indice")
-                        plt.ylabel("Valore")
-                        plt.grid(True)
-                        plt.show()
-                    ######################################
-                    '''
-                    #print("module ok for directoin: ", direction['angle'])
-                    '''
-                    #########################################
-                    
-                    f_response = matching_direction['f_response'].abs()#.unsqueeze(-1)############faccio abs perchè sennò sono formalmente dei complessi
-        
-
-                    # Assumiamo che la dimensione lungo la quale vuoi sommare sia `dim=-2` o `dim=1`
-                    accumulator = torch.zeros(self.RIR_length).to(self.device)  # inizializza con la stessa forma della somma finale
-
-                    # Itera attraverso la penultima dimensione
-                    for l in range(f_response.size(0)):  # se `dim=-2`, accediamo a questa dimensione come `-2`
-                        accumulator += f_response[l] * self.pre_bp_interpolator[l, :]
-
-                    module = accumulator
-
-                    ################################################                    
-                    '''
-                    
+                
                     
                     signal_to_add = module*torch.exp(1j*ph)#add the corrispondent phase
                     direction['f_response'] += signal_to_add
-                    
-                    '''
-                    ##################################
-                    for m in range(len(direction['f_response'])):
-                        direction['f_response'][m] += module[m]*torch.exp(1j*ph[m])
-                        
-                    ##############################################
-                    '''
 
 
-
-        b = time.time()
-        #print("time to apply beampattern directional attenuation: ", b-a)
-
-
-        a = time.time()
-        #padding = self.RIR_length - len(directional_freq_responses[0]['f_response']) ##########padding necessario per farli lunghi self.RIR_length#####non più necessario con interpolatore
-
+        
         for r in directional_freq_responses:
 
             """
             TIME DOMAIN
             """
             
-            #upsampled_f_response = torch.sum(r['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2) #####################################
-            
-            
-            #print("f response: ", r['f_response'])
-            
-            '''
-            plt.plot(r['f_response'].abs().detach().cpu())
-            plt.title("f_response_module")
-            plt.xlabel("Indice")
-            plt.ylabel("Valore")
-            plt.grid(True)
-            plt.show()
-            
-            
-            plt.plot(r['f_response'].angle().detach().cpu())
-            plt.title("f_response_phase")
-            plt.xlabel("Indice")
-            plt.ylabel("Valore")
-            plt.grid(True)
-            plt.show()
-            '''
-            
-            out_full = torch.fft.irfft(r['f_response'])############provo a mettere questo#########prima dell'interpolzione era r['f_response]
+            out_full = torch.fft.irfft(r['f_response'])
 
             new_window = torch.Tensor(
-            scipy.fft.fftshift(scipy.signal.get_window("hamming", len(out_full), fftbins=False))).to(self.device)#necessario creare una nuova window perchè doveva avere la giusta dimensione
+            scipy.fft.fftshift(scipy.signal.get_window("hamming", len(out_full), fftbins=False))).to(self.device) #needed to create a new window because the dimension is different
 
-            r['t_response'] = out_full * new_window #########window serve?
+            r['t_response'] = out_full * new_window #########is the window needed??
 
-
-            #r['t_response'] = torch.cat((r['t_response'], torch.zeros(padding).to(self.device))) ##li rendo uguali in lunghezza a quello che sarà la late response######con interpolaizone lo sono già
-
-
+            
             r['t_response']= F.fftconvolve(
                     self.source_response - torch.mean(self.source_response), r['t_response'])[:self.RIR_length]
-            r['t_response'] = r['t_response']*((self.sigmoid(self.decay)**self.times)) #[:len(r['t_response'])])################aggiunto il cut??
+            r['t_response'] = r['t_response']*((self.sigmoid(self.decay)**self.times)) #[:len(r['t_response'])])################should I add the cut??
 
-            b = time.time()
-
-        #print("time to pad, anti-transform, convolve with source ir, apply decay: ", b-a)
 
         return directional_freq_responses
     
@@ -862,14 +678,14 @@ class Renderer(nn.Module):
 
     ###############################################################################
 
-    def render_RIR_directional(self, loc, source_axis_1=None, source_axis_2=None, angular_sensitivity= 60,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+    def render_RIR_directional(self, loc, azimuths, elevations, source_axis_1=None, source_axis_2=None,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """Renders the RIR."""
-        directional_responses = self.render_early_directional(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
+        directional_responses = self.render_early_directional(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, azimuths=azimuths, elevations=elevations, listener_forward=listener_forward, listener_left=listener_left)
 
         for r in directional_responses:
             while torch.sum(torch.isnan(r['t_response'])) > 0: # Check for numerical issues
                 print("nan found - trying again")
-                directional_responses = self.render_early_directional(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, angular_sensitivity= angular_sensitivity, listener_forward=listener_forward, listener_left=listener_left)
+                directional_responses = self.render_early_directional(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, azimuths=azimuths, elevations=elevations, listener_forward=listener_forward, listener_left=listener_left)
 
         late = self.render_late(loc=loc)
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
@@ -1001,7 +817,7 @@ def get_interpolator(n_freq_target, freq_indices):
     return result
 
 def gen_counts(surface_indices, n_surfaces):
-    """Generates a (n_paths, n_surfaces) 0-1 mask indicating reflections"""#?????se riflette più di una volta sulla stessa superficie il valore sarà >1?? si
+    """Generates a (n_paths, n_surfaces) 0-1 mask indicating reflections"""
     n_reflections = len(surface_indices)
     result = torch.zeros(n_reflections, n_surfaces)
     for i in range(n_reflections):
@@ -1091,7 +907,7 @@ def initialize_directional_list_for_beampattern(angular_sensitivity, n_freq_samp
         if (elevation == -90 or elevation == 90):
             direction_dict = dict()
             direction_dict['angle'] = [0, elevation]#-90 and +90 elevations are considered having azimuth=0
-            direction_dict['f_response'] = torch.zeros(n_freq_samples, dtype=torch.complex64).to(device)#############provo con complessi
+            direction_dict['f_response'] = torch.zeros(n_freq_samples, dtype=torch.complex64).to(device)#######is complex64 ok?
             frequency_responses_list.append(direction_dict)
         else:   
             for azimuth in azimuths:
@@ -1103,6 +919,20 @@ def initialize_directional_list_for_beampattern(angular_sensitivity, n_freq_samp
     return frequency_responses_list
 
 ########################################################################################################################
+
+####################################################################################################
+def initialize_directional_list(azimuths, elevations, n_freq_samples, device):#################method to use specified points (for example obtained with fibonacci distribution)
+
+    frequency_responses_list = []
+    for i in range(len(azimuths)):
+        direction_dict = dict()
+        direction_dict['angle'] = [azimuths[i], elevations[i]]
+        direction_dict['f_response'] = torch.zeros(n_freq_samples, dtype=torch.complex64).to(device)############is complex64 ok?
+        frequency_responses_list.append(direction_dict)
+
+    return frequency_responses_list
+
+#################################################################################################
 
 '''
 #####################################################################
@@ -1170,22 +1000,6 @@ def get_direction_key(azimuth, elevation):
     return key        
 ################################################################################
 '''
-'''
-##################################################################
-def butter_bandpass(lowcut, highcut, fs=48000, order=5):
-    nyquist = 0.5 * fs
-    low = lowcut / nyquist
-    high = highcut / nyquist
-    b, a = scipy.signal.butter(order, [low, high], btype='band')
-    return b, a
-    
-###############################################################
-
-def butter_bandpass_filter(data, lowcut, highcut, fs=48000, order=5):
-    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-    y = torch.tensor(scipy.signal.lfilter(b, a, np.array(data.detach())))######################questo detach va bene?? 
-    return y
-'''
 ################################################################
 
 def sinc_filter(cutoff, fs=48000, num_taps=513, device = 'cpu'):
@@ -1213,7 +1027,7 @@ def bandpass_filter(low_cutoff, high_cutoff, fs= 48000, num_taps=513, device = '
 def apply_bandpass_filter(signal, low_cutoff, high_cutoff, fs = 48000, num_taps=513):
     """Creates a bandpass filter and applies it to a signal using convolution."""
     device = signal.device
-    filter_kernel = bandpass_filter(low_cutoff, high_cutoff, fs, num_taps, device).to(device)###################forse ridondante
+    filter_kernel = bandpass_filter(low_cutoff, high_cutoff, fs, num_taps, device).to(device)##################.to(device) may be
     # Add a batch dimension and channel dimension if necessary
     if signal.dim() == 1:
         signal = signal.unsqueeze(0).unsqueeze(0)
@@ -1228,9 +1042,10 @@ def apply_bandpass_filter(signal, low_cutoff, high_cutoff, fs = 48000, num_taps=
     return filtered_signal.squeeze()
 ################################################################################
 
-#tentativo usare beam pattern per contributi direzionali di ogni path
+#trying to use beam pattern to compute the contributions of every path in every direction
 
 ###########################################################
+#old method (if this is used, rendering is not differentiable anymore)
 def calculate_weights(azimuth_incoming, elevation_incoming, l_max):
     """
     Compute the weights W_{lm} for the direction of arrival of the signal.
@@ -1332,10 +1147,3 @@ def fibonacci_sphere(n_samples):
         points.append((x, y, z))
 
     return np.array(points)
-
-###############################################àà
-def unwrap_phase(phase):
-    diff_phase = torch.diff(phase)
-    unwrapped = torch.cat([phase[:1], phase[1:] + 2 * torch.pi * torch.cumsum((diff_phase < -torch.pi).float() - (diff_phase > torch.pi).float(), dim=0)])
-    return unwrapped
-###############################################
