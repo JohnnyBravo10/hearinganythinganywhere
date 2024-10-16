@@ -218,13 +218,17 @@ class Renderer(nn.Module):
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
         weighted = weights.unsqueeze(-1) * self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
+        ##########################might introduce micrpophone characteristic attenuation here
         directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
         directivity_amplitude_response = torch.exp(directivity_response)
+
 
         """
         Computing overall frequency response, minimum phase transform
         """
         frequency_response = directivity_amplitude_response*reflection_frequency_response
+
+        ##########################might introduce micrpophone characteristic attenuation here
         phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
         fx2 = frequency_response*torch.exp(1j*phases)
         out_full = torch.fft.irfft(fx2)
@@ -421,6 +425,10 @@ class Renderer(nn.Module):
         ----------
         loc: ListenerLocation
             characterizes the location at which we render the early-stage RIR
+        azimuths: list of floats (2 decimal signs, [-180,180]) 
+            azimuths of the incoming direction to predict
+        elevations: list of floats (2 decimal signs, [-90,90]) 
+            elevations of the incoming direction to predict
         source_axis_1: np.array (3,)
             first axis specifying virtual source rotation,
             default is None which is (1,0,0)
@@ -501,8 +509,8 @@ class Renderer(nn.Module):
         frequency_response_with_delays_phases = torch.Tensor().to(self.device)
         
         #might put this in the initial parameters
-        #pre_bp_freqs = torch.Tensor([32, 45, 63, 90, 125, 180, 250, 360, 500, 720, 1000, 1400, 2000, 2800, 4000, 5600, 8000, 12000, 16000])
-        pre_bp_freqs = torch.Tensor([32, 63, 125, 250,  500, 1000, 2000, 4000, 8000, 16000])
+        pre_bp_freqs = torch.Tensor([32, 45, 63, 90, 125, 180, 250, 360, 500, 720, 1000, 1400, 2000, 2800, 4000, 5600, 8000, 12000, 16000, 20000])
+        #pre_bp_freqs = torch.Tensor([32, 63, 125, 250,  500, 1000, 2000, 4000, 8000, 16000])
         
         pre_bp_freq_indices = torch.round(pre_bp_freqs*((self.RIR_length-1)/self.nyq)).int() 
         self.pre_bp_interpolator = get_interpolator(self.RIR_length, pre_bp_freq_indices).to(self.device)
@@ -569,8 +577,8 @@ class Renderer(nn.Module):
 
         #Compute Azimuths and Elevation
         listener_coordinates = incoming_listener_directions @ listener_basis
-        azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
-        elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
+        paths_azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
+        paths_elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
         directional_freq_responses = initialize_directional_list(azimuths, elevations, self.RIR_length, self.device)
         n_orders = len (self.bp_ord_cut_freqs)
@@ -583,8 +591,8 @@ class Renderer(nn.Module):
             if(self.model_transmission or paths_without_transmissions[i]):
                 freq_samples_contributions = initialize_directional_list(azimuths, elevations, len(pre_bp_freqs), self.device) ####modules (10 samples)
                 for j in range(len(frequency_response_with_delays_modules[0])):
-                    bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], azimuths[i], elevations[i], cutoffs, self.device)
-                    pattern_max = beam_pattern(azimuths[i], elevations[i], bp_weights, n_orders)#normalization factor
+                    bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], paths_azimuths[i], paths_elevations[i], cutoffs, self.device)
+                    pattern_max = beam_pattern(paths_azimuths[i], paths_elevations[i], bp_weights, n_orders)#normalization factor
                     
                     for direction in freq_samples_contributions:
                         #print("beampattern prameters, ", direction['angle'][0], direction['angle'][1], bp_weights, n_orders)
@@ -595,11 +603,18 @@ class Renderer(nn.Module):
                 
                 for direction in directional_freq_responses:
                     matching_direction = next((r for r in freq_samples_contributions if r['angle'] == direction['angle']), None)
-                    module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)#interpolation on same direction contributions
+                    module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2) #interpolation on same direction contributions
+                    ########################################################################
+                    '''
+                    module = torch.zeros(len(self.pre_bp_interpolator[0]), dtype = torch.complex64).to(self.device)
+                    for j in range(len(self.pre_bp_interpolator)):
+                        module += matching_direction['f_response'][j] * self.pre_bp_interpolator[j]
+                    '''
+                    #########################################################################
                     
                 
                     
-                    signal_to_add = module*torch.exp(1j*ph)#add the corrispondent phase
+                    signal_to_add = module*torch.exp(1j*ph) #add the corrispondent phase
                     direction['f_response'] += signal_to_add
 
 
