@@ -135,9 +135,9 @@ def training_loss_directional_0_old_version(x,y, cutoff =9000, eps=1e-6):
 
     return loss
 
-#################################################################################################################################
+#############################################################################################################################
 
-###########################################################################################################################
+#############################################################################################################################
 def training_loss_directional(x,y, cutoff =9000, eps=1e-6):
     """
     Training Loss considering directionality
@@ -165,7 +165,102 @@ def training_loss_directional(x,y, cutoff =9000, eps=1e-6):
 
     return loss
 
-##########################################################################################################################
+##############################################################################################################################
+
+#############################################################################################################################
+def training_loss_directional_with_decay(x,y, cutoff =9000, eps=1e-6, l = 10):
+    """
+    Training Loss considering directionality
+
+    Computes spectral L1, log spectral L1 and log L1 of the decay curves for each direction
+
+    Parameters
+    ----------
+    x: list of dictionaries (one for each direction), torch.tensor
+    y: lòist of dictionaries (one for each direction), torch.tensor
+    eps: added to the magnitude stft before taking the square root. Limits dynamic range of spectrogram.
+    l: weight of decay loss
+    
+    Returns
+    -------
+    loss: float tensor
+
+    """
+
+    assert len(x) == len(y), "Different angular resolutions"
+    loss = 0
+    for r in x:
+        matching_r = next((i for i in y if i['angle'] == r['angle']), None)
+        loss += training_loss(r['t_response'], matching_r['t_response'], cutoff=cutoff, eps=eps)
+        
+        loss += l * torch.mean(torch.abs(safe_log(decay_curve(r['t_response']))-safe_log(decay_curve(matching_r['t_response']))))
+
+
+    return loss
+
+##############################################################################################################################
+
+##############################################################################################################################
+
+def training_loss_with_decay(x,y,cutoff=9000, eps=1e-6, l = 10):
+    """
+    Training Loss
+
+    Computes spectral L1, log spectral L1 and log L1 of the decay curves
+
+    Parameters
+    ----------
+    x: first audio waveform(s), torch.tensor
+    y: second audio waveform(s), torch.tensor
+    eps: added to the magnitude stft before taking the square root. Limits dynamic range of spectrogram.
+    l: weight of decay loss 
+    
+    Returns
+    -------
+    loss: float tensor
+    """
+    loss1 = L1_and_Log(x,y, n_fft=512, eps=eps)
+    loss2 = L1_and_Log(x,y, n_fft=1024, eps=eps)
+    loss3 = L1_and_Log(x,y, n_fft=2048, eps=eps)
+    loss4 = L1_and_Log(x,y, n_fft=4096, eps=eps)
+    tiny_hop_loss = L1_and_Log(x[...,:cutoff], y[...,:cutoff], n_fft=256, eps=eps, hop_length=1)
+    decay_loss = torch.mean(torch.abs(safe_log(decay_curve(x))-safe_log(decay_curve(y))))
+    
+    return loss1 + loss2 + loss3 + loss4 + tiny_hop_loss + l * decay_loss
+
+##############################################################################################################################
+
+##############################################################################################################################
+def decay_curve(x, n_fft = 512, hop_length = None):
+
+
+    # Compute the spectrogram with Hann window
+    '''
+    H = torch.abs(torch.stft(x.to(device),
+                      n_fft=n_fft,
+                      hop_length = hop_length,
+                      window=torch.hann_window(n_fft).to(device),
+                      return_complex=False))
+    '''
+    H = get_stft(x, n_fft, hop_length)
+    E = torch.sum(H[..., 0]**2 + H[..., 1]**2, axis=0) 
+    #print("H:", H)###############
+    #print("H.shape", H.shape)
+    # Compute energy for each time window
+    #E = torch.sum(H**2, axis=0) 
+    #print("E:", E)###############
+    #print("E.shape", E.shape)
+    
+    # Compute the decay curve D(H)
+    K = H.shape[1]
+    D = torch.zeros(K-1) #last element is exluded to prevent NaN
+
+    for k in range(K-1):
+        D[k] = 1 + (E[k] / torch.sum(E[k+1:]))#.item()
+
+    print("D:", D)
+    return D
+##############################################################################################################################
 
 """
 Evaluation Metrics

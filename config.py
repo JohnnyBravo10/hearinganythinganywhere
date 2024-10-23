@@ -1,5 +1,5 @@
 # Paths to dataset - replace paths with YOUR paths
-classroomBase_path = "../classroomBase"
+classroomBase_path = "../classroomBase" #######################
 
 dampenedBase_path = "/viscam/projects/audio_nerf/datasets/release/Dampened/dampenedBase"
 dampenedRotation_path = "/viscam/projects/audio_nerf/datasets/release/Dampened/dampenedRotation"
@@ -22,7 +22,7 @@ music_files_for_trajectory_path = "/viscam/projects/audio_nerf/code_release/exam
 
 
 # Path to HRIRs
-HRIR_dataset_dir = "/viscam/projects/audio_nerf/code_release/HRIRs"
+HRIR_dataset_dir = "./HRIRs"
 
 #######################################
 prova_dataset_path= "../prova_dataset"
