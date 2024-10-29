@@ -938,7 +938,7 @@ def get_listener(source_xyz, listener_xyz, surfaces, load_dir=None, load_num=Non
 
     else:
         # Loading precomputed paths
-        print("Listener Loading From" + load_dir)
+        print("Listener Loading From: " + load_dir)
         reflections = np.load(os.path.join(load_dir,"reflections/"+str(load_num)+".npy"), allow_pickle=True)
         transmissions = np.load(os.path.join(load_dir, "transmissions/"+str(load_num)+".npy"), allow_pickle=True)
         delays = np.load(os.path.join(load_dir, "delays/"+str(load_num)+".npy"))
