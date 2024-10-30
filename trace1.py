@@ -185,6 +185,10 @@ def find_reflection_points(surfaces, source, dest, plot=False, save_path=None): 
     #Compute full path distance
     full_distance = np.linalg.norm(image-source)
 
+    #########################################necessary initialization to include direct path
+    intersection_point = virtual_source
+    #########################################
+    
     #Iterate forward to find reflection points
     for i in range(n_surfaces):
 
@@ -438,7 +442,11 @@ def get_reflections_transmissions_and_delays(
     else:
         candidate_transmission_surfaces = [surfaces[k] for k in candidate_transmission_surface_indices]
 
-    for order in range(1,max_order+1):
+    for order in range(0,max_order+1):
+        #############################################direct path should be tested as well
+        if order ==0:
+            all_indices.append([])
+        ############################################
         if order == 1:
             for i in range(len(surfaces)):
                 all_indices.append([i])
@@ -446,8 +454,9 @@ def get_reflections_transmissions_and_delays(
             for i in range(len(all_indices)):
                 for j in range(n_surfaces):
                     pth = all_indices[i]
-                    if pth[-1] != j:
-                        all_indices.append(pth+[j])
+                    if len(pth) > 0: ############if is needed now that we consider also the direct path
+                        if pth[-1] != j:
+                            all_indices.append(pth+[j])
     
     print("Considered Paths:\t" + str(len(all_indices)))
 
@@ -467,6 +476,7 @@ def get_reflections_transmissions_and_delays(
     end_directions = []
     points_for_all_paths = []
 
+    '''
     ###############################must be checked if the direct path exists #not checked in the original version 
     
     if direct_path_check(source, dest, surfaces):
@@ -484,7 +494,7 @@ def get_reflections_transmissions_and_delays(
     
 
     #######################################################################àà
-
+    '''
     #Checks each candidate reflection path for validity, and finds transmission surfaces
     count=0
 
