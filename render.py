@@ -101,6 +101,7 @@ class Renderer(nn.Module):
         ##########################################################################################
 
     def init_early(self):
+        
         ##################### A could be initialized in a different way exploiting a priori knowledge on the surfaces materials 
          
         # Initializing "Energy Vector", which stores the coefficients for each surface
@@ -274,7 +275,8 @@ class Renderer(nn.Module):
     
     def render_early_microphone_response(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
         """
-        Renders the early-stage RIR
+        Renders the early-stage RIR taking into consideration the microphone response
+        To use this method you need to have defined self.mic_0_gain, self.mic_180_loss, self.mic_direction
 
         Parameters
         ----------
@@ -315,8 +317,7 @@ class Renderer(nn.Module):
         # reflection_frequency_response = n_paths * n_freq_samples
         reflection_frequency_response = torch.prod(torch.prod(
             torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear????
-        ########################## might introduce microphone characteristic attenuation here
-
+       
         """
         Computing Directivity Response
         """
@@ -338,7 +339,6 @@ class Renderer(nn.Module):
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
         weighted = weights.unsqueeze(-1) * self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
-        ##########################might introduce microphone characteristic attenuation here
         directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
         directivity_amplitude_response = torch.exp(directivity_response)
 
@@ -350,7 +350,7 @@ class Renderer(nn.Module):
         
         ##############################################################################################################
         #microphone response
-        mic_freqs = torch.Tensor([key for key in self.mic_characteristic.keys()])
+        mic_freqs = torch.Tensor([key for key in self.mic_180_loss.keys()])
         mic_freq_indices = torch.round(mic_freqs*(len(frequency_response[0])/self.nyq)).int() 
         self.mic_freq_interpolator = get_interpolator(len(frequency_response[0]), mic_freq_indices)
         
@@ -358,7 +358,7 @@ class Renderer(nn.Module):
         for i in range(n_paths):
             angle = np.arccos(np.dot(loc.end_directions_normalized[i], self.mic_direction))
             for j in range(len(mic_freqs)): 
-                mic_resp_profile[i][j] = 1 - (angle * self.mic_characteristic[mic_freqs[j].item()] / math.pi)
+                mic_resp_profile[i][j] = (1 - (angle * self.mic_180_loss[mic_freqs[j].item()] / math.pi)) * self.mic_0_gain[mic_freqs[j].item()] 
                 
         mic_response = torch.sum(mic_resp_profile.unsqueeze(-1) * self.mic_freq_interpolator, dim=-2)
         
@@ -367,7 +367,6 @@ class Renderer(nn.Module):
         frequency_response *= mic_response
         #############################################################################################################
 
-        ########################## might introduce microphone characteristic attenuation here
         phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
         fx2 = frequency_response*torch.exp(1j*phases)
         out_full = torch.fft.irfft(fx2)
