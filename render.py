@@ -197,7 +197,7 @@ class Renderer(nn.Module):
         # reflection_frequency_response = n_paths * n_freq_samples
         reflection_frequency_response = torch.prod(torch.prod(
             torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear????
-        ########################## might introduce microphone characteristic attenuation here
+    
 
         """
         Computing Directivity Response
@@ -220,7 +220,6 @@ class Renderer(nn.Module):
         weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
         weighted = weights.unsqueeze(-1) * self.directivity_sphere
         directivity_profile = torch.sum(weighted, dim=1)
-        ##########################might introduce microphone characteristic attenuation here
         directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
         directivity_amplitude_response = torch.exp(directivity_response)
 
@@ -230,7 +229,7 @@ class Renderer(nn.Module):
         """
         frequency_response = directivity_amplitude_response*reflection_frequency_response
 
-        ########################## might introduce microphone characteristic attenuation here
+
         phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
         fx2 = frequency_response*torch.exp(1j*phases)
         out_full = torch.fft.irfft(fx2)
@@ -273,6 +272,124 @@ class Renderer(nn.Module):
         return RIR_early
     ######################################################
     
+    #######################################################################
+    def render_early_music_instrument(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """
+        Renders the early-stage RIR without considering the source impulse response
+
+        Parameters
+        ----------
+        loc: ListenerLocation
+            characterizes the location at which we render the early-stage RIR
+        hrirs: np.array (n_paths x 2 x h_rir_length)
+            head related IRs for each reflection path's direction
+        source_axis_1: np.array (3,)
+            first axis specifying virtual source rotation,
+            default is None which is (1,0,0)
+        source_axis_2: np.array (3,)
+            second axis specifying virtual source rotation,
+            default is None which is (0,1,0)        
+
+        Returns
+        -------
+        RIR_early - (N,) tensor, early-stage RIR
+        """
+
+        """
+        Computing Reflection Response
+        """
+        n_paths = loc.delays.shape[0]
+        energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
+        amplitudes = torch.sqrt(energy_coeffs).to(self.device)
+
+        # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
+        # path reflects off surface
+        mask = torch.stack((loc.reflection_mask, loc.transmission_mask), dim=-1).unsqueeze(-1).to(self.device)
+        
+        # gains_profile is n_paths * n_surfaces * 2 * num_frequencies * 1
+        if not self.model_transmission:  
+            paths_without_transmissions = torch.sum(loc.transmission_mask, dim=-1) == 0
+            
+        gains_profile = (amplitudes[:,0:2,:].unsqueeze(0)**mask).unsqueeze(-1)
+        
+
+        # reflection_frequency_response = n_paths * n_freq_samples
+        reflection_frequency_response = torch.prod(torch.prod(
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear????
+        ########################## might introduce microphone characteristic attenuation here
+
+        """
+        Computing Directivity Response
+        """
+        start_directions_normalized = loc.start_directions_normalized.to(self.device)
+
+        # If there is speaker rotation
+        if source_axis_1 is not None and source_axis_2 is not None:
+            source_axis_3 = np.cross(source_axis_1 ,source_axis_2)
+            source_basis = np.stack( (source_axis_1, source_axis_2, source_axis_3), axis=-1)
+            start_directions_normalized_transformed = (
+                start_directions_normalized @ torch.Tensor(source_basis).double().cuda())
+            dots =  start_directions_normalized_transformed @ (self.sphere_points).T
+        else:
+            dots = start_directions_normalized @ (self.sphere_points).T
+
+        
+        # Normalized weights for each directivity bin
+        weights = torch.exp(-self.sharpness*(1-dots))
+        weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
+        weighted = weights.unsqueeze(-1) * self.directivity_sphere
+        directivity_profile = torch.sum(weighted, dim=1)
+        directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
+        directivity_amplitude_response = torch.exp(directivity_response)
+
+
+        """
+        Computing overall frequency response, minimum phase transform
+        """
+        frequency_response = directivity_amplitude_response*reflection_frequency_response
+
+
+        phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
+        fx2 = frequency_response*torch.exp(1j*phases)
+        out_full = torch.fft.irfft(fx2)
+        out = out_full[...,:self.filter_length] * self.window
+
+
+        """
+        Compiling RIR
+        """
+        reflection_kernels = torch.zeros(n_paths, self.RIR_length).to(self.device)
+    
+        if self.toa_perturb:
+            noises = 7*torch.randn(n_paths, 1).to(self.device)
+
+        for i in range(n_paths):        
+            if self.toa_perturb:
+                delay = loc.delays[i] + torch.round(noises[i]).int()
+            else:
+                delay = loc.delays[i]
+
+            # factor/delay gives us the 1/(radius in meters)
+            factor = (2*self.nyq)/343
+            reflection_kernels[i, delay:delay+out.shape[-1]] = out[i]*(factor/(delay))
+
+            if not self.model_transmission:
+                reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
+
+        if hrirs is not None:
+            reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
+            reflection_kernels = F.fftconvolve(reflection_kernels, hrirs.to(self.device)) # hrirs are n_paths x 2 x length
+            RIR_early = torch.sum(reflection_kernels, axis=0) 
+
+        else:
+            RIR_early = torch.sum(reflection_kernels, axis=0)
+            
+        
+        RIR_early = RIR_early*(self.sigmoid(self.decay)**self.times)
+        return RIR_early
+    
+    
+    #####################################################################
     def render_early_microphone_response(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
         """
         Renders the early-stage RIR taking into consideration the microphone response
@@ -358,11 +475,155 @@ class Renderer(nn.Module):
         for i in range(n_paths):
             angle = np.arccos(np.dot(loc.end_directions_normalized[i], self.mic_direction))
             for j in range(len(mic_freqs)): 
-                mic_resp_profile[i][j] = (1 - (angle * self.mic_180_loss[mic_freqs[j].item()] / math.pi)) * self.mic_0_gain[mic_freqs[j].item()] 
+                mic_resp_profile[i][j] = (math.pow(10, -(angle * self.mic_180_loss[mic_freqs[j].item()] / math.pi)/20)) * self.mic_0_gain[mic_freqs[j].item()] 
                 
-        mic_response = torch.sum(mic_resp_profile.unsqueeze(-1) * self.mic_freq_interpolator, dim=-2)
+        mic_response = torch.sum(mic_resp_profile.unsqueeze(-1) * self.mic_freq_interpolator, dim=-2).to(self.device)
         
-        print("mic_response", mic_response)
+        print("mic_response", mic_response)###############
+                
+        frequency_response *= mic_response
+        #############################################################################################################
+
+        phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
+        fx2 = frequency_response*torch.exp(1j*phases)
+        out_full = torch.fft.irfft(fx2)
+        out = out_full[...,:self.filter_length] * self.window
+
+
+        """
+        Compiling RIR
+        """
+        reflection_kernels = torch.zeros(n_paths, self.RIR_length).to(self.device)
+    
+        if self.toa_perturb:
+            noises = 7*torch.randn(n_paths, 1).to(self.device)
+
+        for i in range(n_paths):        
+            if self.toa_perturb:
+                delay = loc.delays[i] + torch.round(noises[i]).int()
+            else:
+                delay = loc.delays[i]
+
+            # factor/delay gives us the 1/(radius in meters)
+            factor = (2*self.nyq)/343
+            reflection_kernels[i, delay:delay+out.shape[-1]] = out[i]*(factor/(delay))
+
+            if not self.model_transmission:
+                reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
+
+        if hrirs is not None:
+            reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
+            reflection_kernels = F.fftconvolve(reflection_kernels, hrirs.to(self.device)) # hrirs are n_paths x 2 x length
+            RIR_early = torch.sum(reflection_kernels, axis=0) 
+            RIR_early = F.fftconvolve(
+                (self.source_response - torch.mean(self.source_response)).view(1,-1), RIR_early)[...,:self.RIR_length]
+        else:
+            RIR_early = torch.sum(reflection_kernels, axis=0)
+            RIR_early = F.fftconvolve(
+                self.source_response - torch.mean(self.source_response), RIR_early)[:self.RIR_length]
+        
+        RIR_early = RIR_early*(self.sigmoid(self.decay)**self.times)
+        return RIR_early
+    
+    
+    
+    
+    #############################################################
+    
+    #####################################################################
+    def render_early_cardioid(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """
+        Renders the early-stage RIR taking into consideration the microphone response
+        To use this method you need to have defined self.mic_0_gain, self.cardioids_exponents, self.mic_direction
+
+        Parameters
+        ----------
+        loc: ListenerLocation
+            characterizes the location at which we render the early-stage RIR
+        hrirs: np.array (n_paths x 2 x h_rir_length)
+            head related IRs for each reflection path's direction
+        source_axis_1: np.array (3,)
+            first axis specifying virtual source rotation,
+            default is None which is (1,0,0)
+        source_axis_2: np.array (3,)
+            second axis specifying virtual source rotation,
+            default is None which is (0,1,0)        
+
+        Returns
+        -------
+        RIR_early - (N,) tensor, early-stage RIR
+        """
+
+        """
+        Computing Reflection Response
+        """
+        n_paths = loc.delays.shape[0]
+        energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
+        amplitudes = torch.sqrt(energy_coeffs).to(self.device)
+
+        # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
+        # path reflects off surface
+        mask = torch.stack((loc.reflection_mask, loc.transmission_mask), dim=-1).unsqueeze(-1).to(self.device)
+        
+        # gains_profile is n_paths * n_surfaces * 2 * num_frequencies * 1
+        if not self.model_transmission:  
+            paths_without_transmissions = torch.sum(loc.transmission_mask, dim=-1) == 0
+            
+        gains_profile = (amplitudes[:,0:2,:].unsqueeze(0)**mask).unsqueeze(-1)
+        
+
+        # reflection_frequency_response = n_paths * n_freq_samples
+        reflection_frequency_response = torch.prod(torch.prod(
+            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear????
+       
+        """
+        Computing Directivity Response
+        """
+        start_directions_normalized = loc.start_directions_normalized.to(self.device)
+
+        # If there is speaker rotation
+        if source_axis_1 is not None and source_axis_2 is not None:
+            source_axis_3 = np.cross(source_axis_1 ,source_axis_2)
+            source_basis = np.stack( (source_axis_1, source_axis_2, source_axis_3), axis=-1)
+            start_directions_normalized_transformed = (
+                start_directions_normalized @ torch.Tensor(source_basis).double().cuda())
+            dots =  start_directions_normalized_transformed @ (self.sphere_points).T
+        else:
+            dots = start_directions_normalized @ (self.sphere_points).T
+
+        
+        # Normalized weights for each directivity bin
+        weights = torch.exp(-self.sharpness*(1-dots))
+        weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
+        weighted = weights.unsqueeze(-1) * self.directivity_sphere
+        directivity_profile = torch.sum(weighted, dim=1)
+        directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
+        directivity_amplitude_response = torch.exp(directivity_response)
+
+        
+        """
+        Computing overall frequency response, minimum phase transform
+        """
+        frequency_response = directivity_amplitude_response*reflection_frequency_response
+        
+        ##############################################################################################################
+        #microphone response
+        mic_freqs = torch.Tensor([key for key in self.cardioid_exponents.keys()])
+        mic_freq_indices = torch.round(mic_freqs*(len(frequency_response[0])/self.nyq)).int() 
+        self.mic_freq_interpolator = get_interpolator(len(frequency_response[0]), mic_freq_indices)
+        
+        mic_resp_profile = torch.zeros(n_paths, len(self.mic_freq_interpolator))
+        for i in range(n_paths):
+            
+            cosine = np.dot(loc.end_directions_normalized[i], self.mic_direction)
+            for j in range(len(mic_freqs)): 
+                card_amp = math.pow((1+cosine)/2, self.cardioid_exponents[mic_freqs[j].item()])
+                decibel_loss = (1 - card_amp)*25
+                mic_resp_profile[i][j] = math.pow(10, -decibel_loss/20) * self.mic_0_gain[mic_freqs[j].item()] 
+                
+        mic_response = torch.sum(mic_resp_profile.unsqueeze(-1) * self.mic_freq_interpolator, dim=-2).to(self.device)
+        
+        print("mic_response", mic_response)##########
                 
         frequency_response *= mic_response
         #############################################################################################################
@@ -809,6 +1070,25 @@ class Renderer(nn.Module):
         return RIR
     
     ###############################################################################
+    
+    def render_RIR_music_instrument(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """Renders the RIR without the source impulse response (which is supposed to be included in the instrument dry sound recording)."""
+        early = self.render_early_music_instrument(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        while torch.sum(torch.isnan(early)) > 0: # Check for numerical issues
+            print("nan found - trying again")
+            early = self.render_early_music_instrument(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        late = self.render_late(loc=loc)
+
+        # Blend early and late stage together using spline
+        self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
+        RIR = late*self.spline + early*(1-self.spline)
+        return RIR
+    
+    ###############################################################################################
+    
+    ############################################################################################
 
     def render_RIR_by_directions_oldVersion(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None, angular_sensitivities= angular_sensitivities_em64,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
         """Renders the RIR."""
