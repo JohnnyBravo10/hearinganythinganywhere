@@ -473,7 +473,7 @@ class Renderer(nn.Module):
         
         mic_resp_profile = torch.zeros(n_paths, len(self.mic_freq_interpolator))
         for i in range(n_paths):
-            angle = np.arccos(np.dot(loc.end_directions_normalized[i], self.mic_direction))
+            angle = np.arccos(np.dot(loc.end_directions_normalized[i], -self.mic_direction)) # - sign needed because the directions of the paths are icoming
             for j in range(len(mic_freqs)): 
                 mic_resp_profile[i][j] = (math.pow(10, -(angle * self.mic_180_loss[mic_freqs[j].item()] / math.pi)/20)) * self.mic_0_gain[mic_freqs[j].item()] 
                 
@@ -614,8 +614,7 @@ class Renderer(nn.Module):
         
         mic_resp_profile = torch.zeros(n_paths, len(self.mic_freq_interpolator))
         for i in range(n_paths):
-            
-            cosine = np.dot(loc.end_directions_normalized[i], self.mic_direction)
+            cosine = np.dot(loc.end_directions_normalized[i], -self.mic_direction) # - sign is needed because the directions of the paths are incoming
             for j in range(len(mic_freqs)): 
                 card_amp = math.pow((1+cosine)/2, self.cardioid_exponents[mic_freqs[j].item()])
                 decibel_loss = (1 - card_amp)*25
@@ -969,8 +968,8 @@ class Renderer(nn.Module):
         #frequency_response= frequency_response_with_delays
 
 
-        norms = np.linalg.norm(loc.end_directions_normalized, axis=-1).reshape(-1,1)
-        incoming_listener_directions = -loc.end_directions_normalized/norms
+
+        outgoing_listener_directions = -loc.end_directions_normalized #outgoing directions needed to compute arctans
         
 
         #Make sure listener_forward and listener_left are orthogonal
@@ -980,8 +979,8 @@ class Renderer(nn.Module):
         listener_basis = np.stack((listener_forward, listener_left, listener_up), axis=-1)
 
         #Compute Azimuths and Elevation
-        listener_coordinates = incoming_listener_directions @ listener_basis
-        paths_azimuths = np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
+        listener_coordinates = outgoing_listener_directions @ listener_basis
+        paths_azimuths = -np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0])) #sign - needed to consider clockwise azimuths
         paths_elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
         directional_freq_responses = initialize_directional_list(azimuths, elevations, self.RIR_length, self.device)
@@ -1335,7 +1334,7 @@ def initialize_directional_list_oldVersion(angular_sensitivities, signal_length,
 
 ######################################################################################################################à
 
-def initialize_directional_list_for_beampattern(angular_sensitivity, n_freq_samples, device):
+def initialize_directional_list_for_beampattern_oldVersion(angular_sensitivity, n_freq_samples, device):
 
     frequency_responses_list = []
     used_angle = 180/(int(180/angular_sensitivity))
