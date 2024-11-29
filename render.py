@@ -360,7 +360,7 @@ class Renderer(nn.Module):
             for j in range(len(mic_freqs)): 
                 mic_resp_profile[i][j] = (1 - (angle * self.mic_180_loss[mic_freqs[j].item()] / math.pi)) * self.mic_0_gain[mic_freqs[j].item()] 
                 
-        mic_response = torch.sum(mic_resp_profile.unsqueeze(-1) * self.mic_freq_interpolator, dim=-2)
+        mic_response = torch.sum(mic_resp_profile.unsqueeze(-1) * self.mic_freq_interpolator, dim=-2).to(self.device)
         
         print("mic_response", mic_response)
                 
