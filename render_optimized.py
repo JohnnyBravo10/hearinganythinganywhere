@@ -197,8 +197,6 @@ class Renderer(nn.Module):
         delays = (loc.delays.to(self.device) + (torch.round(7 * torch.randn(n_paths, device=self.device)) if self.toa_perturb else 0).to(self.device)).long()
 
         reflection_kernels = torch.zeros((n_paths, self.RIR_length), device=device)
-        idx = torch.arange(out.shape[-1], device=device).unsqueeze(0) + delays.unsqueeze(1)
-        factor = (2 * self.nyq / 343) / delays.unsqueeze(1)
         # Converti reflection_kernels a float64 se necessario, o viceversa
         reflection_kernels = torch.zeros((n_paths, self.RIR_length), device=self.device, dtype=torch.float64)
 
@@ -254,93 +252,69 @@ class Renderer(nn.Module):
         Computing Reflection Response
         """
         n_paths = loc.delays.shape[0]
-        energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2) # Conservation of energy
-        amplitudes = torch.sqrt(energy_coeffs).to(self.device)
+        device = self.device
 
-        # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates
-        # path reflects off surface
-        mask = torch.stack((loc.reflection_mask, loc.transmission_mask), dim=-1).unsqueeze(-1).to(self.device)
+        # Energy coefficients: softmax and amplitude computation
+        energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2)
+        amplitudes = torch.sqrt(energy_coeffs).to(device)
+
+        # Mask and gains_profile computation
+        mask = torch.stack((loc.reflection_mask, loc.transmission_mask), dim=-1).unsqueeze(-1).to(device)
+        gains_profile = (amplitudes[:, :2, :].unsqueeze(0) ** mask).unsqueeze(-1)
         
-        # gains_profile is n_paths * n_surfaces * 2 * num_frequencies * 1
-        if not self.model_transmission:  
-            paths_without_transmissions = torch.sum(loc.transmission_mask, dim=-1) == 0
-            
-        gains_profile = (amplitudes[:,0:2,:].unsqueeze(0)**mask).unsqueeze(-1)
+        # Compute reflection frequency response in a single step
+        reflection_response = self.surface_freq_interpolator * gains_profile
+        reflection_frequency_response = torch.prod(torch.sum(reflection_response, dim=-2), dim=-3).prod(dim=-2)
         
-
-        # reflection_frequency_response = n_paths * n_freq_samples
-        reflection_frequency_response = torch.prod(torch.prod(
-            torch.sum(self.surface_freq_interpolator*gains_profile, dim=-2),dim=-3),dim=-2)##########not clear????
-        ########################## might introduce microphone characteristic attenuation here
-
-        """
-        Computing Directivity Response
-        """
-        start_directions_normalized = loc.start_directions_normalized.to(self.device)
-
-        # If there is speaker rotation
+        # Handle source rotation if present
+        start_dirs = loc.start_directions_normalized.to(device)
         if source_axis_1 is not None and source_axis_2 is not None:
-            source_axis_3 = np.cross(source_axis_1 ,source_axis_2)
-            source_basis = np.stack( (source_axis_1, source_axis_2, source_axis_3), axis=-1)
-            start_directions_normalized_transformed = (
-                start_directions_normalized @ torch.Tensor(source_basis).double().cuda())
-            dots =  start_directions_normalized_transformed @ (self.sphere_points).T
-        else:
-            dots = start_directions_normalized @ (self.sphere_points).T
-
+            source_basis = torch.tensor(np.stack((source_axis_1, source_axis_2, np.cross(source_axis_1, source_axis_2)), axis=-1), 
+                                        dtype=torch.double, device=device)
+            start_dirs = start_dirs @ source_basis
         
-        # Normalized weights for each directivity bin
-        weights = torch.exp(-self.sharpness*(1-dots))
-        weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
-        weighted = weights.unsqueeze(-1) * self.directivity_sphere
-        directivity_profile = torch.sum(weighted, dim=1)
+        # Directivity response calculation optimized
+        dots = start_dirs @ self.sphere_points.T
+        weights = torch.exp(-self.sharpness * (1 - dots))
+        weights /= weights.sum(dim=-1, keepdim=True)
+        directivity_profile = (weights.unsqueeze(-1) * self.directivity_sphere).sum(dim=1)
         directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
-        directivity_amplitude_response = torch.exp(directivity_response)
-
-
-        """
-        Computing overall frequency response, minimum phase transform
-        """
-        frequency_response = directivity_amplitude_response*reflection_frequency_response
-
-
-        phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
-        fx2 = frequency_response*torch.exp(1j*phases)
-        out_full = torch.fft.irfft(fx2)
-        out = out_full[...,:self.filter_length] * self.window
-
-
-        """
-        Compiling RIR
-        """
-        reflection_kernels = torch.zeros(n_paths, self.RIR_length).to(self.device)
-    
-        if self.toa_perturb:
-            noises = 7*torch.randn(n_paths, 1).to(self.device)
-
-        for i in range(n_paths):        
-            if self.toa_perturb:
-                delay = loc.delays[i] + torch.round(noises[i]).int()
-            else:
-                delay = loc.delays[i]
-
-            # factor/delay gives us the 1/(radius in meters)
-            factor = (2*self.nyq)/343
-            reflection_kernels[i, delay:delay+out.shape[-1]] = out[i]*(factor/(delay))
-
-            if not self.model_transmission:
-                reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
-
-        if hrirs is not None:
-            reflection_kernels = torch.unsqueeze(reflection_kernels, dim=1) # n_paths x 1 x length
-            reflection_kernels = F.fftconvolve(reflection_kernels, hrirs.to(self.device)) # hrirs are n_paths x 2 x length
-            RIR_early = torch.sum(reflection_kernels, axis=0) 
-
-        else:
-            RIR_early = torch.sum(reflection_kernels, axis=0)
-            
+        freq_response = torch.exp(directivity_response) * reflection_frequency_response
         
-        RIR_early = RIR_early*(self.sigmoid(self.decay)**self.times)
+        # Hilbert transform and inverse FFT
+        phases = hilbert_one_sided(safe_log(freq_response), device=device)
+        out_full = torch.fft.irfft(freq_response * torch.exp(1j * phases))
+        out = out_full[..., :self.filter_length] * self.window
+
+        # Reflection kernels calculation without loop
+        delays = (loc.delays.to(self.device) + (torch.round(7 * torch.randn(n_paths, device=self.device)) if self.toa_perturb else 0).to(self.device)).long()
+
+        reflection_kernels = torch.zeros((n_paths, self.RIR_length), device=device)
+        # Converti reflection_kernels a float64 se necessario, o viceversa
+        reflection_kernels = torch.zeros((n_paths, self.RIR_length), device=self.device, dtype=torch.float64)
+
+        # Assicurati che anche l'operazione con 'out' sia coerente
+        out = out.to(torch.float64)  # Converti 'out' a float64
+
+        # Poi esegui scatter_add_
+        reflection_kernels.scatter_add_(
+            1, 
+            (delays[:, None] + torch.arange(out.shape[-1], device=self.device)[None, :]).long(),
+            (out * (2 * self.nyq / 343) / delays[:, None]).to(torch.float64)
+        )
+
+        # Transmission mask application
+        if not self.model_transmission:
+            reflection_kernels *= (loc.transmission_mask.sum(dim=-1) == 0).unsqueeze(1).to(device)
+
+        # Convolution with HRIRs (if provided)
+        RIR_early = torch.sum(reflection_kernels, dim=0)
+        if hrirs is not None:
+            RIR_early = F.fftconvolve(reflection_kernels.unsqueeze(1), hrirs.to(device)).sum(axis=0)
+        
+        
+        RIR_early *= (self.sigmoid(self.decay) ** self.times)
+
         return RIR_early
     
     
@@ -544,7 +518,7 @@ class Renderer(nn.Module):
     ##############################################################################
     # Doesn't support hrirs
 
-
+    #NOT WORKING
     def render_early_directional(self, loc, azimuths, elevations, source_axis_1=None, source_axis_2=None, listener_forward=np.array([0, 1, 0]), listener_left=np.array([-1, 0, 0])):
         """
         Renders the early-stage RIR with optimizations.
@@ -573,29 +547,43 @@ class Renderer(nn.Module):
         directional_freq_responses - list of dictionaries 
             for each direction, a time domain (t_response) and a frequency domain (f_response) early RIR are specified
         """
-        
+
         n_paths = loc.delays.shape[0]
         energy_coeffs = nn.functional.softmax(self.energy_vector, dim=-2)  # Conservation of energy
         amplitudes = torch.sqrt(energy_coeffs).to(self.device)
 
-        # mask is n_paths * n_surfaces * 2 * 1 - 1 at (path, surface, 0) indicates path reflects off surface
         mask = torch.stack((loc.reflection_mask, loc.transmission_mask), dim=-1).unsqueeze(-1).to(self.device)
 
-        # gains_profile is n_paths * n_surfaces * 2 * num_frequencies * 1
         if not self.model_transmission:
             paths_without_transmissions = torch.sum(loc.transmission_mask, dim=-1) == 0
         gains_profile = (amplitudes[:, 0:2, :].unsqueeze(0) ** mask).unsqueeze(-1)
 
-        # reflection_frequency_response = n_paths * n_freq_samples
         reflection_frequency_response = torch.prod(torch.prod(
             torch.sum(self.surface_freq_interpolator * gains_profile, dim=-2), dim=-3), dim=-2)
 
-        # Compute the listener's basis
-        assert np.abs(np.dot(listener_forward, listener_left)) < 0.01
+        start_directions_normalized = loc.start_directions_normalized.to(self.device)
+
+        if source_axis_1 is not None and source_axis_2 is not None:
+            source_axis_3 = np.cross(source_axis_1 ,source_axis_2)
+            source_basis = np.stack( (source_axis_1, source_axis_2, source_axis_3), axis=-1)
+            start_directions_normalized_transformed = (
+                start_directions_normalized @ torch.Tensor(source_basis).double().cuda())
+            dots =  start_directions_normalized_transformed @ (self.sphere_points).T
+        else:
+            dots = start_directions_normalized @ (self.sphere_points).T
+
+        weights = torch.exp(-self.sharpness*(1-dots))
+        weights = weights/(torch.sum(weights, dim=-1).view(-1, 1))
+        weighted = weights.unsqueeze(-1) * self.directivity_sphere
+        directivity_profile = torch.sum(weighted, dim=1)
+        directivity_response = torch.sum(directivity_profile.unsqueeze(-1) * self.dir_freq_interpolator, dim=-2)
+        directivity_amplitude_response = torch.exp(directivity_response)
+
+        frequency_response = directivity_amplitude_response * reflection_frequency_response
+
         listener_up = np.cross(listener_forward, listener_left)
         listener_basis = np.stack((listener_forward, listener_left, listener_up), axis=-1)
 
-        # Compute Azimuths and Elevation
         outgoing_listener_directions = -loc.end_directions_normalized
         listener_coordinates = outgoing_listener_directions @ listener_basis
         paths_azimuths = -np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0]))
@@ -603,69 +591,53 @@ class Renderer(nn.Module):
 
         directional_freq_responses = initialize_directional_list(azimuths, elevations, self.RIR_length, self.device)
         n_orders = len(self.bp_ord_cut_freqs)
-
         cutoffs = self.bp_ord_cut_freqs.detach()  # detached for the moment
 
-        # Batch version of frequency response with delays
         pre_bp_freqs = torch.Tensor([32, 45, 63, 90, 125, 180, 250, 360, 500, 720, 1000, 1400, 2000, 2800, 4000, 5600, 8000, 12000, 16000, 20000]).to(self.device)
         pre_bp_freq_indices = torch.round(pre_bp_freqs * ((self.RIR_length - 1) / self.nyq)).int()
         self.pre_bp_interpolator = get_interpolator(self.RIR_length, pre_bp_freq_indices).to(self.device)
 
-        # Perturb TOA if needed
         if self.toa_perturb:
             noises = 1 * torch.randn(n_paths, 1).to(self.device)
 
-        # Use a batch to compute the frequency responses for all paths
         frequency_response_with_delays_modules = torch.zeros(n_paths, len(pre_bp_freqs), device=self.device)
-        frequency_response_with_delays_phases = torch.zeros(n_paths, 49025, device=self.device)##########################
+        frequency_response_with_delays_phases = torch.zeros(n_paths, 49025, device=self.device)
 
-        # Calculate all frequency responses in parallel (batch)
-        for i in range(n_paths):
-            phases = hilbert_one_sided(safe_log(reflection_frequency_response[i]), device=self.device)
-            fx2 = reflection_frequency_response[i] * torch.exp(1j * phases)
-            sig = torch.fft.irfft(fx2)
+        # Compute all frequency responses and beam patterns in parallel (batch)
+        phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
+        fx2 = frequency_response * torch.exp(1j * phases)
+        sig = torch.fft.irfft(fx2)
 
-            # Perturb TOA if needed
-            delay = loc.delays[i] + (torch.round(noises[i]).int() if self.toa_perturb else 0)
-            del_pad_sig = torch.cat([torch.zeros(delay).to(self.device), sig, torch.zeros(self.RIR_length - delay).to(self.device)])
+        delay = loc.delays.unsqueeze(1) + (torch.round(noises).int() if self.toa_perturb else 0)
+        del_pad_sig = torch.cat([torch.zeros(delay).to(self.device), sig, torch.zeros(self.RIR_length - delay).to(self.device)])
+        factor = (2 * self.nyq) / 343
+        del_pad_sig = del_pad_sig * (factor / (delay))  # attenuation proportional to path length
 
-            # Frequency domain (with delay)
-            new_freq_resp = torch.fft.rfft(del_pad_sig)
+        new_freq_resp = torch.fft.rfft(del_pad_sig, dim=-1)
 
-            # Downsample
-            downsampled_modules = torch.zeros(len(pre_bp_freqs), device=self.device)
-            phases = new_freq_resp.angle()
+        downsampled_modules = torch.zeros(n_paths, len(pre_bp_freqs), device=self.device)
+        phases = new_freq_resp.angle()
 
-            for k in range(len(pre_bp_freqs)):
-                index = torch.round(pre_bp_freqs[k] * ((len(new_freq_resp) - 1) / self.nyq)).int()
-                downsampled_modules[k] = new_freq_resp[index].abs()
+        for k in range(len(pre_bp_freqs)):
+            index = torch.round(pre_bp_freqs[k] * ((new_freq_resp.shape[-1] - 1) / self.nyq)).int()
+            downsampled_modules[:, k] = new_freq_resp[:, index].abs()
 
-            frequency_response_with_delays_modules[i] = downsampled_modules
-            frequency_response_with_delays_phases[i] = phases
+        frequency_response_with_delays_modules = downsampled_modules
+        frequency_response_with_delays_phases = phases
 
-        # Calculate beam patterns and responses for each path in batch
-        if self.model_transmission or paths_without_transmissions[i]:
-            freq_samples_contributions = initialize_directional_list(azimuths, elevations, len(pre_bp_freqs), self.device)
-            for j in range(len(frequency_response_with_delays_modules[0])):
-                bp_weights = calculate_weights_all_orders_batch(pre_bp_freqs, paths_azimuths, paths_elevations, cutoffs, self.device)
+        # Batch calculation for all beam patterns and frequency responses
+        bp_weights = calculate_weights_all_orders_batch(pre_bp_freqs, paths_azimuths, paths_elevations, cutoffs, self.device)
+        pattern_max = beam_pattern_batch(paths_azimuths, paths_elevations, bp_weights, n_orders, self.device)
 
-                # Compute the beam pattern and responses in parallel
-                pattern_max = beam_pattern_batch(paths_azimuths, paths_elevations, bp_weights, n_orders)
+        freq_samples_contributions = initialize_directional_list(azimuths, elevations, len(pre_bp_freqs), self.device) ####modules (10 samples)
+        # Final frequency response calculation for all paths in parallel
+        for direction in directional_freq_responses:
+            matching_direction = next((r for r in freq_samples_contributions if r['angle'] == direction['angle']), None)
+            module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)
 
-                for direction in freq_samples_contributions:
-                    direction['f_response'][j] = frequency_response_with_delays_modules[i][j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders) / pattern_max
+            signal_to_add = module * torch.exp(1j * frequency_response_with_delays_phases)  # Add the corresponding phase
+            direction['f_response'] += signal_to_add
 
-            ph = Func.interpolate(frequency_response_with_delays_phases[i].unsqueeze(0).unsqueeze(0), scale_factor=(self.RIR_length / len(frequency_response_with_delays_phases[i])), mode='linear').squeeze(0).squeeze(0)
-
-            # Sum the frequency responses for all paths
-            for direction in directional_freq_responses:
-                matching_direction = next((r for r in freq_samples_contributions if r['angle'] == direction['angle']), None)
-                module = torch.sum(matching_direction['f_response'].unsqueeze(-1) * self.pre_bp_interpolator, dim=-2)
-
-                signal_to_add = module * torch.exp(1j * ph)  # Add the corresponding phase
-                direction['f_response'] += signal_to_add
-
-        # Time domain conversion
         for r in directional_freq_responses:
             out_full = torch.fft.irfft(r['f_response'])
             new_window = torch.Tensor(scipy.fft.fftshift(scipy.signal.get_window("hamming", len(out_full), fftbins=False))).to(self.device)
