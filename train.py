@@ -212,6 +212,179 @@ def train_loop(R, Ls, train_gt_audio, D = None,
     return losses
 
 
+#######################################################################
+
+def train_loop_weight_log(R, Ls, train_gt_audio, D = None,
+                n_epochs=1000, batch_size=4, lr = 1e-2, loss_fcn = None,
+                save_dir=None, 
+                pink_noise_supervision = False, pink_start_epoch=500,
+                continue_train=False,
+                fs=48000, saving_recurrency = 100): 
+    """
+    Runs the training process
+
+    Parameters
+    ----------
+    R: Renderer
+        renderer to train
+    Ls: list of ListenerLocation
+        training set of listener locations
+    train_gt_audio: np.array(n_rirs, rir_length)
+        ground truth RIRs
+    save_dir: str
+        path to save weights in
+    perturb_surfaces: bool
+        if we should perturb surfaces (and thus retrace) during training
+    pink_noise_supervision: bool
+        if we should supervise using pink noise during training
+    pink_start_epoch: int
+        what epoch we should start supervising the model on pink noise
+        
+    saving_recurrency: int
+        how often (in terms of epochs) should the weights be saved
+
+    Returns
+    -------
+    losses: list of float training losses.
+    """
+
+    print("Loss:\t"+str(loss_fcn))
+    print("Late Network Style\t" + R.late_stage_model)
+    if save_dir is not None:
+        makedir_if_needed(save_dir)
+
+
+    #train_gt_audio = torch.Tensor(train_gt_audio).cuda()###############in the original code
+
+
+    # Lower learning rate on residual
+    my_list = ['RIR_residual']
+    my_params = list(map(lambda x: x[1],list(filter(lambda kv: kv[0] in my_list, R.named_parameters()))))
+    base_params = list(map(lambda x: x[1],list(filter(lambda kv: kv[0] not in my_list, R.named_parameters()))))
+    optimizer = torch.optim.Adam([{'params': base_params}, {'params': my_params, 'lr': 1e-4}], lr=lr)
+
+    for name, param in R.named_parameters():
+        print(name)
+
+    losses = []
+    
+    #if args.continue_train: ######################this was the original version, but args. is not needed!
+    if continue_train:
+        losses = list(np.load(os.path.join(save_dir,"losses.npy")))
+        N_train = len(Ls)
+        epoch = int(len(losses)/(int(N_train)))######N_train is correct bif N_train is divisible by batch_size
+
+        print("CURRENT EPOCH")
+        print(epoch)
+    else:
+        epoch = 0
+    
+    if isinstance(train_gt_audio[0][0], dict):#####################################
+        azimuths = []
+        elevations = []
+        for direction in train_gt_audio[0]:
+            azimuths.append(direction['angle'][0])
+            elevations.append(direction['angle'][1])
+            
+    ####################################################################################################
+    #if pink_noise_supervision and isinstance(train_gt_audio[0], np.ndarray): #######if pink noise needeed (only useful for the directional case)
+    if pink_noise_supervision and isinstance(train_gt_audio[0][0], dict):#####################################
+        convolved_pred = render.initialize_directional_list(azimuths, elevations, 1, device)
+        convolved_gt = render.initialize_directional_list(azimuths, elevations, 1, device)
+    ####################################################################################################
+        
+        
+    print("training initialized")
+    
+    while epoch < n_epochs:
+
+        print("Epoch n°:")
+        print(epoch, flush=True)
+
+        N_train = len(Ls)
+        N_iter = max(int(N_train/batch_size),1)
+        rand_idx = np.random.permutation(N_train)
+
+        for i in range(N_iter):
+            print("iteration number:", i, "of", N_iter)
+            
+            curr_indices = rand_idx[i*batch_size:(i+1)*batch_size]            
+            optimizer.zero_grad()
+
+            for idx in curr_indices:
+
+                ###############the original code had only the second case
+                #if isinstance(train_gt_audio[idx], np.ndarray):
+                if isinstance(train_gt_audio[idx][0], dict):#####################################
+                    print("caso direzionale, rendering...")
+                    output = R.render_RIR_directional(Ls[idx], azimuths, elevations)
+                    print("rendering eseguito")
+                else:
+                    print("Omnidirectional case")
+                    output = R.render_RIR(Ls[idx])
+                ###################################################
+
+                loss = loss_fcn(output, train_gt_audio[idx])
+                
+                print("loss function calcolata")
+
+                if pink_noise_supervision and epoch >= pink_start_epoch:
+
+                    print("Generating Pink Noise")
+                    pink_noise = generate_pink_noise(5*fs, fs=fs).to(device)######original code didn't have .to(device)
+                    ###########################################################################################
+                    #if isinstance(train_gt_audio[idx], np.ndarray):
+                    if isinstance(train_gt_audio[idx][0], dict):#####################################
+                        for direction in convolved_pred:
+                            matching_direction = next( d for d in output if d['angle'] == direction['angle'])
+                            direction['t_response'] = F.fftconvolve(matching_direction['t_response'].to(device), pink_noise)[...,:5*fs]
+                            
+                        for direction in convolved_gt:
+                            matching_direction = next( e for e in train_gt_audio[idx] if e['angle'] == direction['angle'])
+                            direction['t_response'] = F.fftconvolve(matching_direction['t_response'].to(device), pink_noise)[...,:5*fs] #############[:R.RIR_length] might be needed?? 
+                        
+                    else:
+                        convolved_pred = F.fftconvolve(output, pink_noise)[...,:5*fs]
+                        convolved_gt =  F.fftconvolve(train_gt_audio[idx,:R.RIR_length], pink_noise)[...,:5*fs]
+                    #############################################à################################################
+                    
+                    pink_noise_loss = loss_fcn(convolved_pred, convolved_gt)
+                    loss += pink_noise_loss*0.2
+                
+                loss.backward()
+                print("loss.backward() eseguito")
+                losses.append(loss.item())
+                print("loss:") 
+                print(loss.item(),flush=True)
+
+            optimizer.step()
+            ############################
+            for param in R.parameters():
+                print("parameters")
+                print(param.data)
+            ##########################
+            print("optimizer.step() eseguito")
+
+        if save_dir is not None:
+            torch.save({
+            'model_state_dict': R.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            }, os.path.join(save_dir,"weights.pt"))
+            np.save(os.path.join(save_dir,"losses.npy"), np.array(losses))
+            
+            if epoch % saving_recurrency == 0:
+                    torch.save({
+                'model_state_dict': R.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                }, os.path.join(save_dir,"weights" + str(epoch) + ".pt"))
+                
+        epoch += 1
+
+    return losses
+
+ #####################################################################
+
+
 #Note - this function relies on precomputed reflection paths
 def inference(R, source_xyz, xyzs, load_dir, source_axis_1=None, source_axis_2=None):
     """
