@@ -232,10 +232,35 @@ class Renderer(nn.Module):
 
         phases = hilbert_one_sided(safe_log(frequency_response), device=self.device)
         fx2 = frequency_response*torch.exp(1j*phases)
+        
+        import matplotlib.pyplot as plt
+        r_numpy = torch.angle(fx2[0]).detach().numpy()
+        plt.scatter(range(len(r_numpy)), r_numpy, s=1)  # Usa piccoli punti
+        plt.title("angles")
+        plt.xlabel("Indice")
+        plt.ylabel("Valore")
+        plt.show()
+        
         out_full = torch.fft.irfft(fx2)
+        
+        import matplotlib.pyplot as plt
+        r_numpy = out_full[0].detach().numpy()
+        plt.scatter(range(len(r_numpy)), r_numpy, s=1)  # Usa piccoli punti
+        plt.title("Scatter Plot del Tensore")
+        plt.xlabel("Indice")
+        plt.ylabel("Valore")
+        plt.show()
+        
         out = out_full[...,:self.filter_length] * self.window
 
-
+        import matplotlib.pyplot as plt
+        r_numpy = out[0].detach().numpy()
+        plt.scatter(range(len(r_numpy)), r_numpy, s=1)  # Usa piccoli punti
+        plt.title("Scatter Plot del Tensore")
+        plt.xlabel("Indice")
+        plt.ylabel("Valore")
+        plt.show()
+        
         """
         Compiling RIR
         """
@@ -254,7 +279,7 @@ class Renderer(nn.Module):
             factor = (2*self.nyq)/343
             reflection_kernels[i, delay:delay+out.shape[-1]] = out[i]*(factor/(delay))
 
-            if not self.model_transmission:
+            if not self.model_transmission:###why is this if inside the for cycle??
                 reflection_kernels = reflection_kernels*paths_without_transmissions.reshape(-1,1).to(self.device)
 
         if hrirs is not None:
@@ -898,6 +923,8 @@ class Renderer(nn.Module):
         """
         frequency_response = directivity_amplitude_response*reflection_frequency_response
         
+        print("frequency response sum:", torch.sum(frequency_response))
+        
 
         """
         Introducing delays ####################################################
@@ -968,6 +995,7 @@ class Renderer(nn.Module):
         #frequency_response= frequency_response_with_delays
 
 
+        print("downsampled_modules", frequency_response_with_delays_modules)
 
         outgoing_listener_directions = -loc.end_directions_normalized #outgoing directions needed to compute arctans
         
