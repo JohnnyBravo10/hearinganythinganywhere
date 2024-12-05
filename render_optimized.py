@@ -603,8 +603,8 @@ class Renderer(nn.Module):
         ################################################################################
 
         if self.toa_perturb:
-            noises = 1*torch.randn(n_paths, 1).to(self.device)################## 1* instead of 7* might be better (the signal is shorter than the non-directional caase) 
-        
+            #noises = 7*torch.randn(n_paths, 1).to(self.device)################## 
+            noises = 7*torch.randn(n_paths).to(self.device)################## 
         """
         ENTERING THE TIME DOMAIN
         """
@@ -619,6 +619,7 @@ class Renderer(nn.Module):
         new_window = torch.Tensor(
             scipy.fft.fftshift(scipy.signal.get_window("hamming", self.RIR_length, fftbins=False))).to(self.device) #needed to create a new window because the dimension is different
         
+        '''
         for i in range(n_paths):
             if self.toa_perturb:
                 delay = loc.delays[i] + torch.round(noises[i]).int()
@@ -644,8 +645,40 @@ class Renderer(nn.Module):
             
             if not self.model_transmission:###why is this if inside the for cycle??
                 new_freq_resp = new_freq_resp*paths_without_transmissions.reshape(-1,1).to(self.device)
+        '''
             
-            ##########################################
+        ###########################################
+            # Calcolo dei ritardi
+        if self.toa_perturb:
+            delays = loc.delays.to(self.device) + torch.round(noises).int()
+        else:
+            delays = loc.delays.to(self.device)   # Shape: [n_paths]
+        
+        # Creazione del segnale con padding e ritardo
+        del_pad_sig = torch.zeros((n_paths, self.RIR_length), device=self.device, dtype=torch.float64)
+
+        # Assicurati che anche l'operazione con 'out' sia coerente
+        sig = sig.to(torch.float64)  # Converti 'out' a float64
+        
+        # Poi esegui scatter_add_
+        del_pad_sig.scatter_add_(
+            1, 
+            (delays[:, None] + torch.arange(sig.shape[-1], device=self.device)[None, :]).long(),
+            (sig * (2 * self.nyq / 343) / delays[:, None]).to(torch.float64)
+        )
+
+        # Applicazione della finestra
+        del_pad_sig *= new_window  # Assumendo che new_window abbia shape [RIR_length]
+
+        """
+        BACK TO THE FREQUENCY DOMAIN
+        """
+        new_freq_resp = torch.fft.rfft(del_pad_sig, dim=1)  # Calcolo simultaneo della rfft su tutti i percorsi
+
+        # Gestione della trasmissione (evitare if nel loop)
+        if not self.model_transmission:
+            new_freq_resp *= paths_without_transmissions.reshape(-1, 1).to(self.device)
+        ##########################################################      
             
         
         phases = new_freq_resp.angle()
@@ -693,10 +726,10 @@ class Renderer(nn.Module):
         for j in range(len(pre_bp_freqs)):
                                 
             bp_weights = calculate_weights_all_orders(pre_bp_freqs[j], paths_azimuths, paths_elevations, cutoffs, self.device) #
-            pattern_max = beam_pattern(paths_azimuths, paths_elevations, bp_weights, n_orders)#normalization factor
+            pattern_max = beam_pattern(paths_azimuths, paths_elevations, bp_weights, n_orders, self.device)#normalization factor
                     
             for direction in freq_samples_contributions:
-                direction['f_response'][:,j] = downsampled_modules[:,j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders)/pattern_max ############is it ok to use complexes?
+                direction['f_response'][:,j] = downsampled_modules[:,j] * beam_pattern(direction['angle'][0], direction['angle'][1], bp_weights, n_orders, self.device)/pattern_max ############is it ok to use complexes?
                 
                 
 
@@ -1210,8 +1243,8 @@ def calculate_weights_all_orders(frequency, azimuth_incoming, elevation_incoming
 
 #################################################
 
-#################################################
-def beam_pattern(azimuth, elevation, bp_weights, l_max):
+####################################################################
+def beam_pattern_old_version(azimuth, elevation, bp_weights, l_max):
     """
     Compute beam pattern in a specific direction.
     
@@ -1234,7 +1267,44 @@ def beam_pattern(azimuth, elevation, bp_weights, l_max):
     
     return torch.abs(pattern.cpu())
 
+#################################################################
+
+#################################################
+def beam_pattern(azimuth, elevation, bp_weights, l_max, device):
+    """
+    Compute beam pattern in a specific direction.
+    
+    :param azimuth: Azimuth angle (in degrees).
+    :param elevation: Elevation angle (in degrees).
+    :param weights: Dictionary of weights W_{lm}.
+    :param l_max: Maximum order of the considered spheric harmonics.
+    :return: Amplitude of the beam pattern in the specified direction.
+    """
+    azimuth=azimuth
+    phi = np.deg2rad(azimuth)
+    theta = np.deg2rad(90 - elevation)
+
+    pattern = 0.0
+    
+    for l in range(l_max + 1):
+        for m in range(-l, l + 1):
+            Y_lm = normalized_sph_harm(m, l, phi, theta)
+            pattern += bp_weights[(l, m)].to('cpu') * Y_lm
+    
+    return torch.abs(pattern.cpu()).to(device)
+
 #####################################################
+
+def normalized_sph_harm(m, l, phi, theta):
+    # Calcolare il fattore di normalizzazione
+    normalization_factor = np.sqrt((2 * l + 1) / (4 * np.pi) * 
+                                   np.math.factorial(l - abs(m)) / np.math.factorial(l + abs(m)))
+    
+    # Calcolare l'armonica sferica non normalizzata
+    Y_lm = sph_harm(m, l, phi, theta)
+    
+    # Applicare la normalizzazione
+    return Y_lm * normalization_factor
 
 ####################################################
 def sigmoid(x):
