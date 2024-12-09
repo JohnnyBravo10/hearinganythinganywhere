@@ -503,12 +503,9 @@ class Renderer(nn.Module):
         RIR_early *= (self.sigmoid(self.decay) ** self.times)
 
         return RIR_early
-
     
     
-    
-    
-    #############################################################
+    ##############################################################################
      
 
 
@@ -817,10 +814,40 @@ class Renderer(nn.Module):
     
     ###############################################################################################
     
+    def render_RIR_omni(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """Renders the RIR."""
+        early = self.render_early_microphone_response(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
 
+        while torch.sum(torch.isnan(early)) > 0: # Check for numerical issues
+            print("nan found - trying again")
+            early = self.render_early_microphone_response(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        late = self.render_late(loc=loc)
+
+        # Blend early and late stage together using spline
+        self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
+        RIR = late*self.spline + early*(1-self.spline)
+        return RIR
     ###############################################################################
+    
+    def render_RIR_cardioid(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """Renders the RIR."""
+        early = self.render_early_cardioid(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
 
-    def render_RIR_directional(self, loc, azimuths, elevations, source_axis_1=None, source_axis_2=None,listener_forward = np.array([0,1,0]), listener_left = np.array([-1,0,0])):
+        while torch.sum(torch.isnan(early)) > 0: # Check for numerical issues
+            print("nan found - trying again")
+            early = self.render_early_cardioid(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        late = self.render_late(loc=loc)
+
+        # Blend early and late stage together using spline
+        self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
+        RIR = late*self.spline + early*(1-self.spline)
+        return RIR
+    
+    ####################################################################################
+
+    def render_RIR_directional(self, loc, azimuths, elevations, source_axis_1=None, source_axis_2=None, listener_forward = np.array([0,-1,0]), listener_left = np.array([-1,0,0])):
         """Renders the RIR."""
         directional_responses = self.render_early_directional(loc=loc, source_axis_1=source_axis_1, source_axis_2=source_axis_2, azimuths=azimuths, elevations=elevations, listener_forward=listener_forward, listener_left=listener_left)
 
@@ -874,7 +901,10 @@ class ListenerLocation():
                  transmissions,
                  delays,
                  start_directions,
-                 end_directions = None):
+                 end_directions = None,
+                 #####################################################
+                 rendering_method = None, mic_orientation = None, mic_0_gains = None, mic_180_loss = None, cardioid_exponents = None
+                 ):
 
         self.source_xyz = source_xyz
         self.listener_xyz = listener_xyz
@@ -889,9 +919,20 @@ class ListenerLocation():
                 end_directions/np.linalg.norm(end_directions, axis=-1).reshape(-1, 1))
         else:
             self.end_directions_normalized = None
+            
+        ######################################################################
+        self.rendering_method = rendering_method
+        self.mic_orientation = mic_orientation
+        self.mic_0_gains = mic_0_gains 
+        self.mic_180_loss = mic_180_loss
+        self.cardioid_exponents = cardioid_exponents
+        
+        #########################################################################
 
 def get_listener(source_xyz, listener_xyz, surfaces, load_dir=None, load_num=None,
-                 speed_of_sound=343, max_order=5,  parallel_surface_pairs=None, max_axial_order=50):
+                 speed_of_sound=343, max_order=5,  parallel_surface_pairs=None, max_axial_order=50,
+                 ####################################################################################
+                 rendering_method = None, mic_orientation = None, mic_0_gains = None, mic_180_loss = None, cardioid_exponents = None):
     """
     Function to get a ListenerLocation. If load_dir is provided, loads precomputed paths
 
@@ -936,7 +977,9 @@ def get_listener(source_xyz, listener_xyz, surfaces, load_dir=None, load_num=Non
         transmissions=transmissions,
         delays=delays,
         start_directions = start_directions,
-        end_directions = end_directions)
+        end_directions = end_directions,
+        ############################################
+        rendering_method = rendering_method, mic_orientation = mic_orientation, mic_0_gains = mic_0_gains, mic_180_loss = mic_180_loss, cardioid_exponents = cardioid_exponents)
 
     return L
 
@@ -1078,72 +1121,7 @@ def initialize_directional_list(azimuths, elevations, n_freq_samples, device):##
 
 #################################################################################################
 
-'''
-#####################################################################
-#gives the key to insert a path into a dictionary of RIR_by_direction
-#forward is [0,1,0], left is [-1,0,0]
-def get_direction_key(azimuth, elevation):
 
-    negative = elevation < 0
-    elevation = abs(elevation)
-    
-    if negative:
-        if elevation <= 7.5:
-            suffix = "0,0"
-        elif 7.5 <= elevation <  16.25:
-            suffix = "-15,0"
-        elif 16.25 <= elevation < 21.25:
-            suffix = "-17,5"
-        elif 21.25 <= elevation < 27.5:
-            suffix = "-25,0"
-        elif 27.5 <= elevation < 32.65:
-            suffix = "-30,0"
-        elif 32.65 <= elevation < 40.15:
-            suffix = "-35,3"
-        elif 40.15 <= elevation < 49.5:
-            suffix = "-45,0"
-        elif 49.5 <= elevation < 57:
-            suffix = "-54,0"
-        elif 57 <= elevation < 62.4:
-            suffix = "-60,0"
-        elif 62.4 <= elevation < 69.9:
-            suffix = "-64,8"        
-        elif 69.9 <= elevation < 78:
-            suffix = "-75,0"
-        elif elevation >= 78:
-            suffix = "-81,0"
-    else:
-        if elevation <= 7.5:
-            suffix = "0,0"
-        elif 7.5 <= elevation <  16.25:
-            suffix = "15,0"
-        elif 16.25 <= elevation < 21.25:
-            suffix = "17,5"
-        elif 21.25 <= elevation < 27.5:
-            suffix = "25,0"
-        elif 27.5 <= elevation < 32.65:
-            suffix = "30,0"
-        elif 32.65 <= elevation < 40.15:
-            suffix = "35,3"
-        elif 40.15 <= elevation < 49.5:
-            suffix = "45,0"
-        elif 49.5 <= elevation < 57:
-            suffix = "54,0"
-        elif 57 <= elevation < 62.4:
-            suffix = "60,0"
-        elif 62.4 <= elevation < 69.9:
-            suffix = "64,8"        
-        elif 69.9 <= elevation < 82.5:
-            suffix = "75,0"
-        elif elevation >= 82.5:
-            suffix = "90,0"
-
-    azimuth = str(int(np.round(azimuth) % 360))
-    key = "azi_" + azimuth + ",0_ele_" + suffix
-
-    return key        
-################################################################################
-'''
 ################################################################
 
 def sinc_filter(cutoff, fs=48000, num_taps=513, device = 'cpu'):

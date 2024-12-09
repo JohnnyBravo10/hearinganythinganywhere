@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torchaudio.functional as F
 import metrics
-import render
+import render_optimized as render
 import evaluate
 import binauralize
 import rooms.dataset
@@ -114,21 +114,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
         print(epoch)
     else:
         epoch = 0
-    
-    if isinstance(train_gt_audio[0][0], dict):#####################################
-        azimuths = []
-        elevations = []
-        for direction in train_gt_audio[0]:
-            azimuths.append(direction['angle'][0])
-            elevations.append(direction['angle'][1])
-            
-    ####################################################################################################
-    #if pink_noise_supervision and isinstance(train_gt_audio[0], np.ndarray): #######if pink noise needeed (only useful for the directional case)
-    if pink_noise_supervision and isinstance(train_gt_audio[0][0], dict):#####################################
-        convolved_pred = render.initialize_directional_list(azimuths, elevations, 1, device)
-        convolved_gt = render.initialize_directional_list(azimuths, elevations, 1, device)
-    ####################################################################################################
-        
+          
         
     print("training initialized")
     
@@ -148,17 +134,50 @@ def train_loop(R, Ls, train_gt_audio, D = None,
             optimizer.zero_grad()
 
             for idx in curr_indices:
+                
+                
+                
+               
+                ################################the original code had only the last case
+                
+                R.mic_direction = Ls[idx].mic_orientation
+                R.mic_0_gain = Ls[idx].mic_0_gains,
+                R.mic_180_loss = Ls[idx].mic_180_loss,
+                R.cardioid_exponents = Ls[idx].cardioid_exponents
+                
+                rendering_method = Ls[idx].rendering_method
+                if rendering_method is not None:
+                    if rendering_method == 'base':
+                        output = R.render_RIR(Ls[idx])
+                        loss_fcn = metrics.training_loss
+                        
+                    elif rendering_method == 'omni':
+                        output = R.render_RIR_omni(Ls[idx])
+                        loss_fcn = metrics.training_loss
+                        
+                    elif rendering_method == 'cardioid':
+                        output = R.render_RIR_cardioid(Ls[idx])
+                        loss_fcn = metrics.training_loss
+                        
+                    elif rendering_method == 'instrument':
+                        output = R.render_RIR_music_instrument(Ls[idx])
+                        loss_fcn = metrics.training_loss
+                        
+                    elif rendering_method == 'directional':
+                        azimuths = []
+                        elevations = []
+                        for direction in train_gt_audio[idx]:
+                            azimuths.append(direction['angle'][0])
+                            elevations.append(direction['angle'][1])
+                            
+                        output = R.render_RIR_directional(Ls[idx], azimuths, elevations)
+                        
+                        loss_fcn = metrics.training_loss_directional
 
-                ###############the original code had only the second case
-                #if isinstance(train_gt_audio[idx], np.ndarray):
-                if isinstance(train_gt_audio[idx][0], dict):#####################################
-                    print("caso direzionale, rendering...")
-                    output = R.render_RIR_directional(Ls[idx], azimuths, elevations)
-                    print("rendering eseguito")
                 else:
                     print("Omnidirectional case")
                     output = R.render_RIR(Ls[idx])
-                ###################################################
+                ########################################################################
 
                 loss = loss_fcn(output, train_gt_audio[idx])
                 
@@ -168,9 +187,14 @@ def train_loop(R, Ls, train_gt_audio, D = None,
 
                     print("Generating Pink Noise")
                     pink_noise = generate_pink_noise(5*fs, fs=fs).to(device)######original code didn't have .to(device)
+                    
                     ###########################################################################################
-                    #if isinstance(train_gt_audio[idx], np.ndarray):
-                    if isinstance(train_gt_audio[idx][0], dict):#####################################
+
+                    if rendering_method == 'directional':#####################################
+                        
+                        convolved_pred = render.initialize_directional_list(azimuths, elevations, 1, device)
+                        convolved_gt = render.initialize_directional_list(azimuths, elevations, 1, device)
+        
                         for direction in convolved_pred:
                             matching_direction = next( d for d in output if d['angle'] == direction['angle'])
                             direction['t_response'] = F.fftconvolve(matching_direction['t_response'].to(device), pink_noise)[...,:5*fs]

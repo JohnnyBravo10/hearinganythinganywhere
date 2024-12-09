@@ -44,7 +44,13 @@ class Dataset:
                 valid_indices,
                 max_order,
                 max_axial_order,
-                n_data):
+                n_data,
+                ###########################################################################
+                rendering_methods = None,
+                mic_orientations = None,
+                mic_0_gains= None, 
+                mic_180_loss = None,
+                cardioid_exponents = None):
 
         #More stuff
         self.speaker_xyz = speaker_xyz
@@ -54,6 +60,7 @@ class Dataset:
         self.default_binaural_listener_left = default_binaural_listener_left
         self.parallel_surface_pairs = parallel_surface_pairs
         self.load_dir = load_dir
+        
 
         #indices
         self.train_indices = train_indices
@@ -63,6 +70,15 @@ class Dataset:
         # Default max order and axial order
         self.max_order = max_order
         self.max_axial_order = max_axial_order
+        
+        #####################################################################################
+        
+        self.rendering_methods = (rendering_methods if rendering_methods is not None else np.full(n_data, None))
+        self.mic_orientations = (mic_orientations if mic_orientations is not None else np.full(n_data, None))
+        self.mic_0_gains= (mic_0_gains if mic_0_gains is not None else np.full(n_data, None))
+        self.mic_180_loss = (mic_180_loss if mic_180_loss is not None else np.full(n_data, None))
+        self.cardioid_exponents = (cardioid_exponents if cardioid_exponents is not None else np.full(n_data, None))
+        ##################################################################################
 
     def load_data(self):
         self.xyzs = np.load(os.path.join(self.load_dir, "xyzs.npy"))

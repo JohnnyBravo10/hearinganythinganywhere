@@ -26,6 +26,8 @@ HRIR_dataset_dir = "./HRIRs"
 
 #######################################
 prova_dataset_path= "../prova_dataset"
+
+nottingham_path = "../nottingham"
 ##########################################
 
 
