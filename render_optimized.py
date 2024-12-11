@@ -1266,14 +1266,14 @@ def beam_pattern(azimuth, elevation, bp_weights, l_max, device):
     
     for l in range(l_max + 1):
         for m in range(-l, l + 1):
-            Y_lm = normalized_sph_harm(m, l, phi, theta)
+            Y_lm = sph_harm(m, l, phi, theta)
             pattern += bp_weights[(l, m)].to('cpu') * Y_lm
     
     return torch.abs(pattern.cpu()).to(device)
 
 #####################################################
 
-def normalized_sph_harm(m, l, phi, theta):
+def normalized_sph_harm(m, l, phi, theta): #wrong, scupy.special nis already normalizing spherical harmonics
     # Calcolare il fattore di normalizzazione
     normalization_factor = np.sqrt((2 * l + 1) / (4 * np.pi) * 
                                    np.math.factorial(l - abs(m)) / np.math.factorial(l + abs(m)))
