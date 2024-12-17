@@ -3,6 +3,9 @@ import config
 import trace1 as G
 import rooms.dataset as dataset
 
+#####################################ààà
+import torch
+
 
 """
 Importing this document automatically loads data from the classroom dataset
@@ -88,7 +91,12 @@ BaseDataset = dataset.Dataset(
    valid_indices = valid_indices,
    max_order = 5,
    max_axial_order = 10,
-   n_data = 630
+   n_data = 630,
+   ################################àà
+   rendering_methods =["omni" for _ in range(630)],
+   mic_orientations = [torch.Tensor([1,0,0]) for _ in range(630)],
+   mic_0_gains = [{1000: 0.01,  5000: 0.01, 10000: 0.01, 16000: 0.01} for _ in range(630)],
+   mic_180_loss=  [{1000: 0,  5000: 0, 10000: 0, 16000: 0} for _ in range(630)]
 )
 
 ####################################
