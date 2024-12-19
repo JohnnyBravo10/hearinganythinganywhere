@@ -697,7 +697,7 @@ class Renderer(nn.Module):
         
 
 
-        outgoing_listener_directions = -loc.end_directions_normalized #outgoing directions needed to compute arctans
+        beampattern_abs_orientations = -loc.end_directions_normalized #outgoing directions needed to compute arctans
         
 
         #Make sure listener_forward and listener_left are orthogonal
@@ -707,7 +707,7 @@ class Renderer(nn.Module):
         listener_basis = np.stack((listener_forward, listener_left, listener_up), axis=-1)
 
         #Compute Azimuths and Elevation
-        listener_coordinates = outgoing_listener_directions @ listener_basis
+        listener_coordinates = beampattern_abs_orientations @ listener_basis
         paths_azimuths = -np.degrees(np.arctan2(listener_coordinates[:, 1], listener_coordinates[:, 0])) #sign - needed to consider clockwise azimuths
         paths_elevations = np.degrees(np.arctan(listener_coordinates[:, 2]/np.linalg.norm(listener_coordinates[:, 0:2],axis=-1)+1e-8))
 
@@ -1285,7 +1285,7 @@ def normalized_sph_harm(m, l, phi, theta): #wrong, scupy.special nis already nor
     return Y_lm * normalization_factor
 
 ####################################################
-def sigmoid(x, k = 0.02):
+def sigmoid(x, k = 0.01):
     return 1 / (1 + torch.exp(-x * k))
 #######################################################
 
