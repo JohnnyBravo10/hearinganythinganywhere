@@ -1285,8 +1285,8 @@ def normalized_sph_harm(m, l, phi, theta): #wrong, scupy.special nis already nor
     return Y_lm * normalization_factor
 
 ####################################################
-def sigmoid(x):
-    return 1 / (1 + torch.exp(-x))
+def sigmoid(x, k = 0.02):
+    return 1 / (1 + torch.exp(-x * k))
 #######################################################
 
 def fibonacci_sphere(n_samples):

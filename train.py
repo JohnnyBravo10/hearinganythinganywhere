@@ -141,9 +141,10 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 ################################the original code had only the last case
                 
                 R.mic_direction = Ls[idx].mic_orientation
-                R.mic_0_gain = Ls[idx].mic_0_gains,
-                R.mic_180_loss = Ls[idx].mic_180_loss,
+                R.mic_0_gain = Ls[idx].mic_0_gains
+                R.mic_180_loss = Ls[idx].mic_180_loss
                 R.cardioid_exponents = Ls[idx].cardioid_exponents
+                
                 
                 rendering_method = Ls[idx].rendering_method
                 if rendering_method is not None:
@@ -180,12 +181,9 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 ########################################################################
 
                 loss = loss_fcn(output, train_gt_audio[idx])
-                
-                print("loss function calcolata")
+            
 
                 if pink_noise_supervision and epoch >= pink_start_epoch:
-
-                    print("Generating Pink Noise")
                     pink_noise = generate_pink_noise(5*fs, fs=fs).to(device)######original code didn't have .to(device)
                     
                     ###########################################################################################
@@ -212,18 +210,11 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                     loss += pink_noise_loss*0.2
                 
                 loss.backward()
-                print("loss.backward() eseguito")
                 losses.append(loss.item())
                 print("loss:") 
                 print(loss.item(),flush=True)
 
             optimizer.step()
-            ############################
-            for param in R.parameters():
-                print("parameters")
-                print(param.data)
-            ##########################
-            print("optimizer.step() eseguito")
 
         if save_dir is not None:
             torch.save({
