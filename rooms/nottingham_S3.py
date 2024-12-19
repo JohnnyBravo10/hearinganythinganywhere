@@ -83,8 +83,8 @@ valid_indices = dataset.compute_complement_indices(list(train_indices) + list(np
 
 #Speaker xyz estimated from 12-point TOA, inside speaker, 8.5cm away from manual measurement.
 BaseDataset = dataset.Dataset(
-   load_dir = config.nottingham_path,
-   speaker_xyz= np.array([4.04, 3.85, 1.07]), 
+   load_dir = config.nottingham_S3_path,
+   speaker_xyz= np.array([5.78, 2.71, 1.40]), 
    all_surfaces = base_surfaces,
    speed_of_sound = speed_of_sound,
    default_binaural_listener_forward = np.array([0,1,0]),

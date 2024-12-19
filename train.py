@@ -108,7 +108,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
     if continue_train:
         losses = list(np.load(os.path.join(save_dir,"losses.npy")))
         N_train = len(Ls)
-        epoch = int(len(losses)/(int(N_train)))######N_train is correct bif N_train is divisible by batch_size
+        epoch = int(len(losses)/(int(N_train)))######N_train is correct if N_train is divisible by batch_size
 
         print("CURRENT EPOCH")
         print(epoch)
@@ -133,9 +133,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
             curr_indices = rand_idx[i*batch_size:(i+1)*batch_size]            
             optimizer.zero_grad()
 
-            for idx in curr_indices:
-                
-                
+            for idx in curr_indices:   
                 
                
                 ################################the original code had only the last case
@@ -171,7 +169,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                             azimuths.append(direction['angle'][0])
                             elevations.append(direction['angle'][1])
                             
-                        output = R.render_RIR_directional(Ls[idx], azimuths, elevations)
+                        output = R.render_RIR_directional(Ls[idx], azimuths, elevations, listener_forward = R.mic_direction, listener_left = np.array([[0, 1, 0], [-1, 0, 0],[0, 0, 1]]) @ R.mic_direction) ##supposing z = 0 (rotation around z)
                         
                         loss_fcn = metrics.training_loss_directional
 
