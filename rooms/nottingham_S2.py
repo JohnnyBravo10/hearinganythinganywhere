@@ -77,9 +77,9 @@ base_surfaces = walls+tables+doors+panels
 Train and Test Split
 """
 
-train_indices = np.arange(12)*(57) #set this value
+train_indices = np.arange(5)
 
-valid_indices = dataset.compute_complement_indices(list(train_indices) + list(np.arange(315)*2), 630)[::2] #set this value
+valid_indices = np.array([])
 
 
 #Speaker xyz estimated from 12-point TOA, inside speaker, 8.5cm away from manual measurement.
