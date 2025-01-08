@@ -99,7 +99,7 @@ BaseDataset = dataset.Dataset(
    #1 omnidirectional
    rendering_methods = ["omni"],
    mic_orientations = [torch.Tensor([0,0,1])],
-   mic_0_gains = [{1000: 501.187,  5000: 501.187, 10000: 531.258, 15000: 581.377, 20000: 561.329}],
+   mic_0_gains = [{1000: 1,  5000: 1, 10000: 1.06, 15000: 1.16, 20000: 1.12}],
    mic_180_loss=  [{1000: 0,  5000: 1, 10000: 2.75, 15000: 5, 20000: 7}]
 )
 

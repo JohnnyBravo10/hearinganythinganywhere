@@ -99,7 +99,7 @@ BaseDataset = dataset.Dataset(
    #4 omnidirectionals + 1 binaural
    rendering_methods =["omni" for _ in range(4)] + ["binaural"],
    mic_orientations = [torch.Tensor([0,0,1]) for _ in range(4)] + [torch.Tensor([0,1,0])],
-   mic_0_gains = [{1000: 501.187,  5000: 501.187, 10000: 531.258, 15000: 581.377, 20000: 561.329} for _ in range(4)] + [None],
+   mic_0_gains = [{1000: 1,  5000: 1, 10000: 1.06, 15000: 1.16, 20000: 1.12} for _ in range(4)] + [None],
    mic_180_loss=  [{1000: 0,  5000: 1, 10000: 2.75, 15000: 5, 20000: 7} for _ in range(4)] + [None]
 )
 

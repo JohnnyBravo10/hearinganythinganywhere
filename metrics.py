@@ -168,6 +168,49 @@ def training_loss_directional(x,y, cutoff =9000, eps=1e-6):
 ##############################################################################################################################
 
 #############################################################################################################################
+def training_loss_directional_rates(x,y, cutoff =9000, eps=1e-6): 
+    """
+    Training Loss considering directionality
+
+    Computes L1 between up-down, dx-sx and forward-behind power rates (richiede che ci sia questo ordine in x e y)
+
+    Parameters
+    ----------
+    x: list of dictionaries (one for each direction), torch.tensor
+    y: list of dictionaries (one for each direction), torch.tensor
+    eps: added to the magnitude stft before taking the square root. Limits dynamic range of spectrogram.
+
+    Returns
+    -------
+    loss: float tensor
+
+    """
+
+    assert len(x) == len(y) == 6
+    loss = 0
+
+    up_x = torch.sqrt(torch.mean((x[0]['t_response'])**2))
+    down_x = torch.sqrt(torch.mean((x[1]['t_response'])**2))
+    dx_x = torch.sqrt(torch.mean((x[2]['t_response'])**2))
+    sx_x = torch.sqrt(torch.mean((x[3]['t_response'])**2))
+    forward_x = torch.sqrt(torch.mean((x[4]['t_response'])**2))
+    behind_x = torch.sqrt(torch.mean((x[5]['t_response'])**2))
+
+    up_y = torch.sqrt(torch.mean((y[0]['t_response'])**2))
+    down_y = torch.sqrt(torch.mean((y[1]['t_response'])**2))
+    dx_y = torch.sqrt(torch.mean((y[2]['t_response'])**2))
+    sx_y = torch.sqrt(torch.mean((y[3]['t_response'])**2))
+    forward_y = torch.sqrt(torch.mean((y[4]['t_response'])**2))
+    behind_y = torch.sqrt(torch.mean((y[5]['t_response'])**2))
+
+    loss += torch.abs(up_x/down_x - up_y/down_y) + torch.abs(dx_x/sx_x - dx_y/sx_y) + torch.abs(forward_x/behind_x - forward_y/behind_y)
+
+
+    return loss
+
+##############################################################################################################################
+
+#############################################################################################################################
 def training_loss_directional_with_decay(x,y, cutoff =9000, eps=1e-6, l = 10):
     """
     Training Loss considering directionality
