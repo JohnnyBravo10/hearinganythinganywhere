@@ -101,8 +101,8 @@ BaseDataset = dataset.Dataset(
    #8 omnidirectionals + 2 ambisonics
    rendering_methods =["omni" for _ in range(8)] + ["directional" for _ in range(2)],
    mic_orientations = [torch.Tensor([0,0,1]) for _ in range(4)] + [torch.Tensor([0,0,-1]) for _ in range(4)] + [torch.Tensor([0,1,0]) for _ in range(2)],
-   mic_0_gains = [{1000: 1,  5000: 1, 10000: 1.06, 15000: 1.16, 20000: 1.12} for _ in range(8)] + [None for _ in range [2]],
-   mic_180_loss=  [{1000: 0,  5000: 1, 10000: 2.75, 15000: 5, 20000: 7} for _ in range(8)] + [None for _ in range [2]]
+   mic_0_gains = [{1000: 1,  5000: 1, 10000: 1.06, 15000: 1.16, 20000: 1.12} for _ in range(8)] + [None for _ in range (2)],
+   mic_180_loss=  [{1000: 0,  5000: 1, 10000: 2.75, 15000: 5, 20000: 7} for _ in range(8)] + [None for _ in range (2)]
 )
 
 ############################################################################################s

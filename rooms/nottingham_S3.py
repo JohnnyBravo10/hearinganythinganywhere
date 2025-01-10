@@ -95,7 +95,7 @@ BaseDataset = dataset.Dataset(
    valid_indices = valid_indices,
    max_order = 5,
    max_axial_order = 10,
-   n_data = 10,
+   n_data = 1,
    #1 omnidirectional
    rendering_methods = ["omni"],
    mic_orientations = [torch.Tensor([0,0,1])],

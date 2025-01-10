@@ -97,7 +97,8 @@ class Renderer(nn.Module):
 
         ##########################################################################################
         # Beampattern orders cutoff frequencies (for the moment this parameter is detached during learning, not learned)
-        self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([70, 400, 800, 1000, 1300, 2000]))
+        #self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([70, 400, 800, 1000, 1300, 2000]))
+        self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([1114, 2228, 3342])) #Zylia ZM-1 cutoffs
         ##########################################################################################
 
     def init_early(self):
@@ -1097,6 +1098,36 @@ class Renderer(nn.Module):
         return RIR
     
     ###############################################################################
+
+    def render_RIR_cardioid(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """Renders the RIR."""
+        early = self.render_early_cardioid(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        while torch.sum(torch.isnan(early)) > 0: # Check for numerical issues
+            print("nan found - trying again")
+            early = self.render_early(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        late = self.render_late(loc=loc) * 0.5 #part of the late response is attenuated due to  the cardioid polar characteristic (approximation based on Neumann KM184 characteristics)
+
+        # Blend early and late stage together using spline
+        self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
+        RIR = late*self.spline + early*(1-self.spline)
+        return RIR
+    
+    def render_RIR_omni(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
+        """Renders the RIR."""
+        early = self.render_early_microphone_response(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        while torch.sum(torch.isnan(early)) > 0: # Check for numerical issues
+            print("nan found - trying again")
+            early = self.render_early(loc=loc, hrirs=hrirs, source_axis_1=source_axis_1, source_axis_2=source_axis_2)
+
+        late = self.render_late(loc=loc) 
+
+        # Blend early and late stage together using spline
+        self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
+        RIR = late*self.spline + early*(1-self.spline)
+        return RIR
     
     def render_RIR_music_instrument(self, loc, hrirs=None, source_axis_1=None, source_axis_2=None):
         """Renders the RIR without the source impulse response (which is supposed to be included in the instrument dry sound recording)."""
@@ -1155,7 +1186,7 @@ class Renderer(nn.Module):
         late = self.render_late(loc=loc)
         self.spline = torch.sum(self.sigmoid(self.spline_values).view(self.n_spline,1)*self.IK, dim=0)
 
-        signal_to_add = late / len(directional_responses)
+        signal_to_add = late * 0.33 #attenuation approximated based on a 3rd order hypercardioid beampattern
     
         for r in directional_responses:    
             

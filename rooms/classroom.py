@@ -98,12 +98,6 @@ BaseDataset = dataset.Dataset(
    mic_orientations= [torch.Tensor([1,0,0]) for _ in range(630)],
    mic_0_gains= [{100:0.01, 1000: 0.01, 5000: 0.01, 10000: 0.01, 15000: 0.01, 20000: 0.01} for _ in range(630)],
    mic_180_loss= [{100:0, 1000: 0, 5000: 0, 10000: 0, 15000: 0, 20000: 0} for _ in range(630)]
-   n_data = 630,
-   ################################àà
-   rendering_methods =["omni" for _ in range(630)],
-   mic_orientations = [torch.Tensor([1,0,0]) for _ in range(630)],
-   mic_0_gains = [{1000: 0.01,  5000: 0.01, 10000: 0.01, 16000: 0.01} for _ in range(630)],
-   mic_180_loss=  [{1000: 0,  5000: 0, 10000: 0, 16000: 0} for _ in range(630)]
 )
 
 ####################################

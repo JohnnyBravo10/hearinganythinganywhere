@@ -163,7 +163,17 @@ def dataLoader(name):
         if name == "prova":
             D = dataset_prova.BaseDataset
     #########################################################
-    
+    elif name[:10] == "nottingham":
+        if name == "nottingham_S1":
+            import rooms.nottingham_S1 as nottingham_S1
+            D = nottingham_S1.BaseDataset
+        if name == "nottingham_S2":
+            import rooms.nottingham_S2 as nottingham_S2
+            D = nottingham_S2.BaseDataset
+        if name == "nottingham_S3":
+            import rooms.nottingham_S3 as nottingham_S3
+            D = nottingham_S3.BaseDataset
+
     else:
         raise ValueError('Invalid Dataset Name')
 
