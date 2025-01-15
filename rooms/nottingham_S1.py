@@ -16,12 +16,6 @@ speed_of_sound = 343
 Locations of all surfaces in Meters
 """
 
-#inches = 0.0254
-
-max_x = 7.1247
-max_y = 7.9248
-max_z = 2.7432
-
 rear_wall = G.Surface(np.array([[16.98386952,-12.74455183,0], [16.98386952,-12.74455183,6.76461222], [0,-12.74455183,0]]))
 
 front_wall = G.Surface(np.array([[0,0,0], [0,0,6.76461222], [16.98386952,0,0]]))
