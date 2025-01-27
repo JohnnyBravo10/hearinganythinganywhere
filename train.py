@@ -169,7 +169,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                             azimuths.append(direction['angle'][0])
                             elevations.append(direction['angle'][1])
                             
-                        output = R.render_RIR_directional(Ls[idx], azimuths, elevations, listener_forward = R.mic_direction, listener_left = np.array([[0, 1, 0], [-1, 0, 0],[0, 0, 1]]) @ R.mic_direction) ##supposing z = 0 (rotation around z)
+                        output = R.render_RIR_directional(Ls[idx], azimuths, elevations, listener_forward = R.mic_direction, listener_left = torch.Tensor([[0, 1, 0], [-1, 0, 0],[0, 0, 1]]) @ R.mic_direction) ##supposing z = 0 (rotation around z)
                         
                         loss_fcn = metrics.training_loss_directional
 

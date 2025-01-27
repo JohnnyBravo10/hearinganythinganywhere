@@ -174,6 +174,15 @@ def dataLoader(name):
             import rooms.nottingham_S3 as nottingham_S3
             D = nottingham_S3.BaseDataset
 
+    #########################################################
+    elif name[:5] == "espoo":
+        if name == "espoo_S2":
+            import rooms.espoo_S2 as espoo_S2
+            D = espoo_S2.BaseDataset
+        if name == "espoo_S2_amb":
+            import rooms.espoo_S2_amb as espoo_S2_amb
+            D = espoo_S2_amb.BaseDataset
+
     else:
         raise ValueError('Invalid Dataset Name')
 
