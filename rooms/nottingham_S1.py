@@ -90,7 +90,7 @@ BaseDataset = dataset.Dataset(
    valid_indices = valid_indices,
    max_order = 5,
    max_axial_order = 10,
-   n_data = 10,
+   n_data = 8, #10
    
    #8 omnidirectionals #+ 2 ambisonics
    rendering_methods =["omni" for _ in range(8)], #+ ["directional" for _ in range(2)],
