@@ -72,7 +72,7 @@ base_surfaces = walls+tables+doors+panels
 Train and Test Split
 """
 
-train_indices = np.arange(10)
+train_indices = np.arange(8) #10
 
 valid_indices = np.array([])
 
@@ -92,7 +92,7 @@ BaseDataset = dataset.Dataset(
    max_axial_order = 10,
    n_data = 10,
    
-   #8 omnidirectionals + 2 ambisonics
+   #8 omnidirectionals #+ 2 ambisonics
    rendering_methods =["omni" for _ in range(8)], #+ ["directional" for _ in range(2)],
    mic_orientations = [torch.Tensor([0,0,1]) for _ in range(4)] + [torch.Tensor([0,0,-1]) for _ in range(4)], #+ [torch.Tensor([0,1,0]) for _ in range(2)],
    mic_0_gains = [{1000: 1,  5000: 1, 10000: 1.06, 15000: 1.16, 20000: 1.12} for _ in range(8)], #+ [None for _ in range (2)],
