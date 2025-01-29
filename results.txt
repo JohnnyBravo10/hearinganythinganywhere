@@ -88,6 +88,26 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0009999999310821295
 
+nottingham train:S1 eval:S3 epochs:500 loss:reverb_10
+multiscale_log_l1 Metric:
+0.2516056306659631
+env_loss Metric:
+0.04172829483351061
+rt60_error Metric:
+74.07662200927734
+rt60_diff Metric:
+0.0008958333055488765
+
+nottingham train:S1 eval:S3 epochs:500 loss:reverb_50
+multiscale_log_l1 Metric:
+0.25081093802244525
+env_loss Metric:
+0.04096716721122193
+rt60_error Metric:
+272.1885681152344
+rt60_diff Metric:
+0.0032916669733822346
+
 (
 WRONG SOURCE DIR nottingham train(NO MIC RESPONSE):S1 eval:S3 EPOCHS:500 
 multiscale_log_l1 Metric:

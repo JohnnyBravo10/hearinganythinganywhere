@@ -245,7 +245,7 @@ def training_loss_directional_with_decay(x,y, cutoff =9000, eps=1e-6, l = 10):
 
 ##############################################################################################################################
 
-def training_loss_with_decay(x,y,cutoff=9000, eps=1e-6, l = 10):
+def training_loss_with_decay(x,y,cutoff=9000, eps=1e-6, l = 50): #########
     """
     Training Loss
 
