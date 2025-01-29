@@ -58,6 +58,16 @@ rt60_error Metric:
 rt60_diff Metric:
 6.250001024454832e-05
 
+nottingham train(NO MIC RESPONSE):S1 eval(NO MIC RESPONSE):S3 EPOCHS:500
+multiscale_log_l1 Metric:
+0.2508445377403686
+env_loss Metric:
+0.04226895804101745
+rt60_error Metric:
+615.00830078125
+rt60_diff Metric:
+0.007437500171363354
+
 nottingham train:S1 eval:S3 epochs:500 
 multiscale_log_l1 Metric:
 0.23022379827192485
