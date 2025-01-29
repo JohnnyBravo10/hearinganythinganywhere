@@ -1,0 +1,81 @@
+WRONG SOURCE DIR nottingham train:S1 eval(NO MIC RESPONSE):S3 epochs:500 
+multiscale_log_l1 Metric:
+0.22107142608512348
+env_loss Metric:
+0.035094353728469266
+rt60_error Metric:
+79.24475860595703
+rt60_diff Metric:
+0.0009583332575857639
+
+WRONG SOURCE DIR nottingham train:S1 eval:S3 epochs:500 
+multiscale_log_l1 Metric:
+0.22581503446815543
+env_loss Metric:
+0.04531114879829311
+rt60_error Metric:
+187.77565002441406
+rt60_diff Metric:
+0.002270833356305957
+
+WRONG SOURCE DIR nottingham train:S1 eval:S3 epochs:500 
+multiscale_log_l1 Metric:
+0.2258053829434235
+env_loss Metric:
+0.0434894990958213
+rt60_error Metric:
+303.1973571777344
+rt60_diff Metric:
+0.003666666802018881
+
+WRONG SOURCE DIR nottingham train(NO MIC RESPONSE):S1 eval(NO MIC RESPONSE):S3 EPOCHS:500
+multiscale_log_l1 Metric:
+0.2445505789347409
+env_loss Metric:
+0.03928408342149661
+rt60_error Metric:
+31.008825302124023
+rt60_diff Metric:
+0.0003750000614672899
+
+WRONG SOURCE DIR nottingham train(NO MIC RESPONSE):S1 eval(NO MIC RESPONSE):S3 EPOCHS:500
+multiscale_log_l1 Metric:
+0.24553056100335607
+env_loss Metric:
+0.03924055734057466
+rt60_error Metric:
+577.1085815429688
+rt60_diff Metric:
+0.006979166530072689
+
+nottingham train(NO MIC RESPONSE):S1 eval(NO MIC RESPONSE):S3 EPOCHS:500
+multiscale_log_l1 Metric:
+0.22720039333864653
+env_loss Metric:
+0.03960042747385876
+rt60_error Metric:
+5.168137550354004
+rt60_diff Metric:
+6.250001024454832e-05
+
+nottingham train:S1 eval:S3 epochs:500 
+multiscale_log_l1 Metric:
+0.23022379827192485
+env_loss Metric:
+0.04683367076367285
+rt60_error Metric:
+356.6014709472656
+rt60_diff Metric:
+0.004312500357627869
+
+(
+WRONG SOURCE DIR nottingham train(NO MIC RESPONSE):S1 eval:S3 EPOCHS:500 
+multiscale_log_l1 Metric:
+0.23511264172426038
+env_loss Metric:
+0.05352731638192659
+rt60_error Metric:
+5.168137550354004
+rt60_diff Metric:
+6.250001024454832e-05
+)

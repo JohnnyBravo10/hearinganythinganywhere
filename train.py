@@ -128,7 +128,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
         rand_idx = np.random.permutation(N_train)
 
         for i in range(N_iter):
-            print("iteration number:", i, "of", N_iter)
+            print("iteration number:", i+1, "of", N_iter)
             
             curr_indices = rand_idx[i*batch_size:(i+1)*batch_size]            
             optimizer.zero_grad()

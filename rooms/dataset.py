@@ -167,6 +167,11 @@ def dataLoader(name):
         if name == "nottingham_S1":
             import rooms.nottingham_S1 as nottingham_S1
             D = nottingham_S1.BaseDataset
+
+        if name == "nottingham_S1_no_mic_characteristics":
+            import rooms.nottingham_S1_no_mic_characteristics as nottingham_S1_no_mic_characteristics
+            D = nottingham_S1_no_mic_characteristics.BaseDataset
+            
         if name == "nottingham_S2":
             import rooms.nottingham_S2 as nottingham_S2
             D = nottingham_S2.BaseDataset

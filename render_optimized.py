@@ -363,6 +363,7 @@ class Renderer(nn.Module):
         self.mic_freq_interpolator = get_interpolator(freq_response.shape[1], mic_indices)
         
         # Vectorized angle computation and gain application
+        
         angles = torch.acos((torch.matmul(loc.end_directions_normalized.double(), -self.mic_direction.double())))
 
         mic_loss_factors = torch.stack([torch.pow(10, -(angles * self.mic_180_loss[f.item()] / math.pi) / 20) * self.mic_0_gain[f.item()] for f in mic_freqs], dim=-1)

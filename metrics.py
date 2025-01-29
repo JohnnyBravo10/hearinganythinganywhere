@@ -359,7 +359,29 @@ def env_loss(x, y, envelope_size=32, eps=1e-6):
     
     return loss
 
-baseline_metrics = [multiscale_log_l1, env_loss]
+def rt60_error(x, y, eps=1e-6):
+    """Percentual error in RT60"""
+    x = x.detach().cpu()
+    y = y.detach().cpu()
+    pred_rt60 = compute_rt60(x)
+    gt_rt60 = compute_rt60(y)
+
+    loss =  100 * torch.abs(pred_rt60 - gt_rt60)/(gt_rt60 + eps)
+    
+    return loss
+
+def rt60_diff(x, y, eps=1e-6):
+    """Difference in RT60"""
+    x = x.detach().cpu()
+    y = y.detach().cpu()
+    pred_rt60 = compute_rt60(x)
+    gt_rt60 = compute_rt60(y)
+
+    loss =  torch.abs(pred_rt60 - gt_rt60)
+    
+    return loss
+
+baseline_metrics = [multiscale_log_l1, env_loss, rt60_error, rt60_diff]
 
 def LRE(x, y, n_fft = 1024, hop_length=None, eps=1e-6):
     """LRE - Binaural Evaluation."""
@@ -373,3 +395,38 @@ def LRE(x, y, n_fft = 1024, hop_length=None, eps=1e-6):
     dif = dif ** 2
 
     return dif.item()
+
+
+def compute_rt60(signal, sample_rate = 48000):
+    """
+    Calcola l'RT60 di un segnale dato usando PyTorch.
+    
+    Args:
+        signal (torch.Tensor): Segnale audio 1D.
+        sample_rate (int): Frequenza di campionamento del segnale.
+        
+    Returns:
+        float: RT60 calcolato in secondi.
+    """
+    # Calcola l'energia del segnale
+    energy = signal ** 2
+
+    max_idx = torch.argmax(energy)
+
+    # Taglia il segnale a partire dal massimo
+    energy = energy[max_idx:]
+    # Normalizza l'energia e converti in dB
+    energy_db = 10 * torch.log10(energy / torch.max(energy))
+
+    # Trova l'intervallo di decadimento (-5 dB a -65 dB)
+    start_idx = (energy_db <= -5).nonzero(as_tuple=True)[0][0]
+    end_idx = (energy_db <= -65).nonzero(as_tuple=True)[0][0]
+
+    # Calcola il tempo corrispondente
+    t_start = start_idx / sample_rate
+    t_end = end_idx / sample_rate
+
+    # RT60 è il tempo necessario per un decadimento di 60 dB
+    rt60 = (t_end - t_start) * (60 / (65 - 5))
+
+    return rt60

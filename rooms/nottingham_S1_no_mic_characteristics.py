@@ -5,6 +5,7 @@ import rooms.dataset as dataset
 
 import torch
 
+
 """
 Importing this document automatically loads data from the classroom dataset
 """
@@ -14,12 +15,6 @@ speed_of_sound = 343
 """
 Locations of all surfaces in Meters
 """
-
-#inches = 0.0254
-
-max_x = 7.1247
-max_y = 7.9248
-max_z = 2.7432
 
 rear_wall = G.Surface(np.array([[16.98386952,-12.74455183,0], [16.98386952,-12.74455183,6.76461222], [0,-12.74455183,0]]))
 
@@ -77,15 +72,15 @@ base_surfaces = walls+tables+doors+panels
 Train and Test Split
 """
 
-train_indices = np.array([])
+train_indices = np.arange(8) #10
 
 valid_indices = np.array([])
 
 
 #Speaker xyz estimated from 12-point TOA, inside speaker, 8.5cm away from manual measurement.
 BaseDataset = dataset.Dataset(
-   load_dir = config.nottingham_S3_path,
-   speaker_xyz= np.array([5.78, 2.71, 1.40]), 
+   load_dir = config.nottingham_S1_path,
+   speaker_xyz= np.array([4.04, 3.85, 1.07]), 
    all_surfaces = base_surfaces,
    speed_of_sound = speed_of_sound,
    default_binaural_listener_forward = np.array([0,1,0]),
@@ -95,13 +90,13 @@ BaseDataset = dataset.Dataset(
    valid_indices = valid_indices,
    max_order = 5,
    max_axial_order = 10,
-   n_data = 1,
-   #1 omnidirectional
-   rendering_methods = ["omni"],
-   mic_orientations = [torch.Tensor([0,0,1])],
-   mic_0_gains = [{1000: 4.37,  5000: 4.37, 10000: 4.63, 15000: 5.06, 20000: 4.89}],
-   #{1000: 1,  5000: 1, 10000: 1.06, 15000: 1.16, 20000: 1.12} is the standard, amplificatins measured ith SPL were introduced
-   mic_180_loss=  [{1000: 0,  5000: 1, 10000: 2.75, 15000: 5, 20000: 7}]
+   n_data = 8, #10
+   
+   #8 omnidirectionals #+ 2 ambisonics
+   rendering_methods =[None for _ in range(8)], #+ ["directional" for _ in range(2)],
+   mic_orientations = [None for _ in range(8)], #+ [torch.Tensor([0,1,0]) for _ in range(2)],
+   mic_0_gains = [None for _ in range(8)], #+ [None for _ in range (2)]
+   mic_180_loss=  [None for _ in range(8)] #+ [None for _ in range (2)]
 )
 
-###################################
+############################################################################################s
