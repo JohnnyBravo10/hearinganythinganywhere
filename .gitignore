@@ -8,7 +8,7 @@ __pycache__/
 # Ignore error files, and prediction files
 **/errors/
 **/predictions/
-**/losses.npy
+# **/losses.npy
 
 # Ignore rendered trajectory temp files
 example_trajectories/**/
