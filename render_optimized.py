@@ -100,7 +100,8 @@ class Renderer(nn.Module):
 
         ##########################################################################################
         # Beampattern orders cutoff frequencies (for the moment this parameter is detached during learning, not learned)
-        self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([70, 400, 800, 1000, 1300, 2000]))
+        #self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([70, 400, 800, 1000, 1300, 2000]))
+        self.bp_ord_cut_freqs = nn.Parameter(torch.Tensor([20, 90, 350]))
         ##########################################################################################
 
     def init_early(self):
