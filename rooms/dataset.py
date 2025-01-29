@@ -187,6 +187,9 @@ def dataLoader(name):
         if name == "espoo_S2_amb":
             import rooms.espoo_S2_amb as espoo_S2_amb
             D = espoo_S2_amb.BaseDataset
+        if name == "espoo_S1":
+            import rooms.espoo_S1 as espoo_S1
+            D = espoo_S1.BaseDataset
 
     else:
         raise ValueError('Invalid Dataset Name')
