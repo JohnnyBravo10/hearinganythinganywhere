@@ -62,7 +62,7 @@ valid_indices = list([])
 
 #Speaker xyz estimated from 12-point TOA, inside speaker, 8.5cm away from manual measurement.
 BaseDataset = dataset.Dataset(
-   load_dir = config.espoo_S2_path,
+   load_dir = config.espoo_S1_path,
    speaker_xyz= np.array([6.37, 2.685, 1.5]), 
    all_surfaces = base_surfaces,
    speed_of_sound = speed_of_sound,
