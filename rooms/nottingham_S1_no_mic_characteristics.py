@@ -72,7 +72,8 @@ base_surfaces = walls+tables+doors+panels
 Train and Test Split
 """
 
-train_indices = np.arange(8) #10
+#train_indices = np.arange(8) #10
+train_indices = np.array([1,2,3,4,5,6,7])
 
 valid_indices = np.array([])
 
