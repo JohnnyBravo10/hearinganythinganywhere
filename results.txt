@@ -109,3 +109,13 @@ rt60_error Metric:
 495.74658857073103
 rt60_diff Metric:
 0.005723214250922736
+
+WRONG BP CUTOFF FREQUENCIES espoo train:S2 eval:S1 epochs:200amb + 300 omni
+multiscale_log_l1 Metric:
+0.8862578354238183
+env_loss Metric:
+0.2057808187974006
+rt60_error Metric:
+375.862295968192
+rt60_diff Metric:
+0.004854166813726936
