@@ -31,6 +31,7 @@ nottingham_S1_path = "../Nottingham1"
 nottingham_S2_path = "../Nottingham2"
 nottingham_S3_path = "../Nottingham3"
 
+espoo_S1_path = "../espoo_S1"
 espoo_S2_path = "../espoo_S2"
 espoo_S2_amb_path = "../espoo_S2_amb"
 ##########################################

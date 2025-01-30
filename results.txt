@@ -120,7 +120,7 @@ rt60_diff Metric:
 6.250001024454832e-05
 )
 
-WRONG BP CUTOFF FREQUENCIES espoo train:S2 eval:S1 epochs:500omni
+espoo train:S2 eval:S2 epochs:500omni
 multiscale_log_l1 Metric:
 0.9012297115217257
 env_loss Metric:
@@ -130,7 +130,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.005723214250922736
 
-WRONG BP CUTOFF FREQUENCIES espoo train:S2 eval:S1 epochs:200amb + 300 omni
+WRONG BP CUTOFF FREQUENCIES espoo train:S2 eval:S2 epochs:200amb + 300 omni
 multiscale_log_l1 Metric:
 0.8862578354238183
 env_loss Metric:
@@ -139,3 +139,43 @@ rt60_error Metric:
 375.862295968192
 rt60_diff Metric:
 0.004854166813726936
+
+WRONG BP CUTOFF FREQUENCIES espoo train:S2 eval:S1 epochs:200amb + 300 omni
+multiscale_log_l1 Metric:
+0.9517202382779063
+env_loss Metric:
+0.22535013784172064
+rt60_error Metric:
+140.46785613468714
+rt60_diff Metric:
+0.004875000133844358
+
+espoo train:S2 eval:S1 epochs:500omni
+multiscale_log_l1 Metric:
+0.9643585098808859
+env_loss Metric:
+0.25100841564784554
+rt60_error Metric:
+112.56079224177769
+rt60_diff Metric:
+0.004494047623925975
+
+espoo train:S2 eval:S1 epochs:500omni
+multiscale_log_l1 Metric:
+0.970699014485528
+env_loss Metric:
+0.2502426326800274
+rt60_error Metric:
+201.70023918151855
+rt60_diff Metric:
+0.0068005949059235194
+
+espoo train:S2 eval:S1 epochs:200amb + 300omni loss:rates
+multiscale_log_l1 Metric:
+0.9602480849457906
+env_loss Metric:
+0.22886734673124004
+rt60_error Metric:
+126.1968765258789
+rt60_diff Metric:
+0.005056547533188548
