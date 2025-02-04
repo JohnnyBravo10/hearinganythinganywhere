@@ -362,3 +362,23 @@ rt60_error Metric:
 87.59322357177734
 rt60_diff Metric:
 0.0016250002663582563
+
+espoo train:S2(no 0) eval:S2(solo 0) epochs:200ambi + 300omni
+multiscale_log_l1 Metric:
+0.9209771347370199
+env_loss Metric:
+0.21746232941967444
+rt60_error Metric:
+638.9812622070312
+rt60_diff Metric:
+0.011854167096316814
+
+espoo train:S2(no 1) eval:S2(solo 1) epochs:200ambi + 300omni
+multiscale_log_l1 Metric:
+0.9683201758452118
+env_loss Metric:
+0.21923964446128738
+rt60_error Metric:
+77.37213897705078
+rt60_diff Metric:
+0.00897916592657566
