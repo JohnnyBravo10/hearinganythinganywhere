@@ -78,6 +78,26 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0006458333227783442
 
+nottingham train(NO MIC RESPONSE):S1 eval(NO MIC RESPONSE):S3 EPOCHS:500
+multiscale_log_l1 Metric:
+0.23682135703404772
+env_loss Metric:
+0.043379254620041434
+rt60_error Metric:
+191.2210693359375
+rt60_diff Metric:
+0.0023125000298023224
+
+nottingham train:S1 eval(NO MIC RESPONSE):S3 EPOCHS:500
+multiscale_log_l1 Metric:
+0.24767210796645894
+env_loss Metric:
+0.04064886867241602
+rt60_error Metric:
+447.90521240234375
+rt60_diff Metric:
+0.005416667088866234
+
 nottingham train:S1 eval:S3 epochs:500 
 multiscale_log_l1 Metric:
 0.23022379827192485
@@ -138,7 +158,17 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0032916669733822346
 
-nottingham train(NO MIC RESPONSE):S1(no 0) eval(NO MIC RESPONSE):S1(solo 0) EPOCHS:500
+nottingham train:S1 eval:S3 epochs:500 loss:reverb_50
+multiscale_log_l1 Metric:
+0.23999778461931162
+env_loss Metric:
+0.04890376929068624
+rt60_error Metric:
+311.8109130859375
+rt60_diff Metric:
+0.003770833369344473
+
+nottingham train(NO MIC RESPONSE):S1(no 0) eval WRONG SOURCE DIR (NO MIC RESPONSE):S1(solo 0) EPOCHS:500
 multiscale_log_l1 Metric:
 0.21495907546098497
 env_loss Metric:
@@ -148,7 +178,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0015625001396983862
 
-nottingham train:S1(no 0) eval(NO MIC RESPONSE):S1(solo 0) EPOCHS:500
+nottingham train:S1(no 0) eval WRONG SOURCE DIR (NO MIC RESPONSE):S1(solo 0) EPOCHS:500
 multiscale_log_l1 Metric:
 0.1691223752214256
 env_loss Metric:
@@ -158,7 +188,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0005624999757856131
 
-WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 0) eval:S1(solo 0) EPOCHS:500
+WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 0) eval WRONG SOURCE DIR:S1(solo 0) EPOCHS:500
 multiscale_log_l1 Metric:
 0.2675651137316567
 env_loss Metric:
@@ -168,7 +198,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.001020833384245634
 
-nottingham train:S1(no 0) eval:S1(solo 0) EPOCHS:500
+nottingham train:S1(no 0) eval WRONG SOURCE DIR:S1(solo 0) EPOCHS:500
 multiscale_log_l1 Metric:
 0.17727822501466578
 env_loss Metric:
@@ -178,7 +208,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0010833337437361479
 
-WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 1) eval:S1(solo 1) EPOCHS:500
+WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 1) eval WRONG SOURCE DIR:S1(solo 1) EPOCHS:500
 multiscale_log_l1 Metric:
 0.2431629859958443
 env_loss Metric:
@@ -188,7 +218,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.00035416707396507263
 
-nottingham train:S1(no 1) eval:S1(solo 1) EPOCHS:500
+nottingham train:S1(no 1) eval WRONG SOURCE DIR:S1(solo 1) EPOCHS:500
 0.17353203584939403
 env_loss Metric:
 0.021196215969597115
@@ -197,7 +227,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0017083329148590565
 
-nottingham train(NO MIC RESPONSE):S1(no 1) eval(NO MIC RESPONSE):S1(solo 1) EPOCHS:500
+nottingham train(NO MIC RESPONSE):S1(no 1) evalWRONG SOURCE DIR (NO MIC RESPONSE):S1(solo 1) EPOCHS:500
 multiscale_log_l1 Metric:
 0.17385190652826862
 env_loss Metric:
@@ -207,7 +237,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.004437499679625034
 
-nottingham train(NO MIC RESPONSE):S1(no 2) eval(NO MIC RESPONSE):S1(solo 2) EPOCHS:500
+nottingham train(NO MIC RESPONSE):S1(no 2) eval WRONG SOURCE DIR(NO MIC RESPONSE):S1(solo 2) EPOCHS:500
 multiscale_log_l1 Metric:
 0.18011301809369862
 env_loss Metric:
@@ -217,7 +247,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0004791663959622383
 
-WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 2) eval:S1(solo 2) EPOCHS:500
+WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 2) evalWRONG SOURCE DIR:S1(solo 2) EPOCHS:500
 multiscale_log_l1 Metric:
 0.2837676742916974
 env_loss Metric:
@@ -227,7 +257,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.009333333931863308
 
-nottingham train:S1(no 2) eval:S1(solo 2) EPOCHS:500
+nottingham train:S1(no 2) eval WRONG SOURCE DIR:S1(solo 2) EPOCHS:500
 multiscale_log_l1 Metric:
 0.19369458473254345
 env_loss Metric:
@@ -237,7 +267,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.009729167446494102
 
-WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 3) eval:S1(solo 3) EPOCHS:500
+WRONG MIC RESPONSE IN EVAL nottingham train:S1(no 3) eval WRONG SOURCE DIR:S1(solo 3) EPOCHS:500
 multiscale_log_l1 Metric:
 0.2764328149118001
 env_loss Metric:
@@ -247,7 +277,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.004895832855254412
 
-nottingham train(NO MIC RESPONSE):S1(no 3) eval(NO MIC RESPONSE):S1(solo 3) EPOCHS:500
+nottingham train(NO MIC RESPONSE):S1(no 3) evalWRONG SOURCE DIR (NO MIC RESPONSE):S1(solo 3) EPOCHS:500
 multiscale_log_l1 Metric:
 0.31313101459339954
 env_loss Metric:
@@ -257,7 +287,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0034166667610406876
 
-nottingham train:S1(no 3) eval:S1(solo 3) EPOCHS:500
+nottingham train:S1(no 3) eval WRONG SOURCE DIR:S1(solo 3) EPOCHS:500
 multiscale_log_l1 Metric:
 0.29247312197800934
 env_loss Metric:
@@ -267,7 +297,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0017916668439283967
 
-nottingham train:S1(no 4) eval:S1(solo 4) EPOCHS:500
+nottingham train:S1(no 4) eval WRONG SOURCE DIR:S1(solo 4) EPOCHS:500
 multiscale_log_l1 Metric:
 0.203785093524094
 env_loss Metric:
@@ -277,7 +307,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.000375000003259629
 
-nottingham train(NO MIC RESPONSE):S1(no 4) eval(NO MIC RESPONSE):S1(solo 4) EPOCHS:500
+nottingham train(NO MIC RESPONSE):S1(no 4) evalWRONG SOURCE DIR (NO MIC RESPONSE):S1(solo 4) EPOCHS:500
 multiscale_log_l1 Metric:
 0.21273692496571367
 env_loss Metric:
@@ -287,7 +317,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.001687500043772161
 
-nottingham train(NO MIC RESPONSE):S1(no 5) eval(NO MIC RESPONSE):S1(solo 5) EPOCHS:500
+nottingham train(NO MIC RESPONSE):S1(no 5) evalWRONG SOURCE DIR (NO MIC RESPONSE):S1(solo 5) EPOCHS:500
 multiscale_log_l1 Metric:
 0.1737469597735139
 env_loss Metric:
@@ -297,7 +327,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.001312499982304871
 
-nottingham train:S1(no 5) eval:S1(solo 5) EPOCHS:500
+nottingham train:S1(no 5) eval WRONG SOURCE DIR:S1(solo 5) EPOCHS:500
 multiscale_log_l1 Metric:
 0.17323070548927844
 env_loss Metric:
@@ -307,7 +337,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.00904166605323553
 
-nottingham train:S1(no 6) eval:S1(solo 6) EPOCHS:500
+nottingham train:S1(no 6) eval WRONG SOURCE DIR:S1(solo 6) EPOCHS:500
 multiscale_log_l1 Metric:
 0.18504650852482862
 env_loss Metric:
@@ -317,7 +347,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0025833335239440203
 
-nottingham train(NO MIC RESPONSE):S1(no 6) eval(NO MIC RESPONSE):S1(solo 6) EPOCHS:500
+nottingham train(NO MIC RESPONSE):S1(no 6) eval WRONG SOURCE DIR(NO MIC RESPONSE):S1(solo 6) EPOCHS:500
 multiscale_log_l1 Metric:
 0.17944609168118936
 env_loss Metric:
@@ -326,6 +356,26 @@ rt60_error Metric:
 83.14779663085938
 rt60_diff Metric:
 0.0050416667945683
+
+nottingham train(NO MIC RESPONSE):S1(no 7) eval WRONG SOURCE DIR(NO MIC RESPONSE):S1(solo 7) EPOCHS:500
+multiscale_log_l1 Metric:
+0.4801241572001804
+env_loss Metric:
+0.11711683558486863
+rt60_error Metric:
+2162.342041015625
+rt60_diff Metric:
+0.010833333246409893
+
+nottingham train:S1(no 7) eval WRONG SOURCE DIR:S1(solo 7) EPOCHS:500
+multiscale_log_l1 Metric:
+0.42338210001063864
+env_loss Metric:
+0.09877460857465789
+rt60_error Metric:
+499.001953125
+rt60_diff Metric:
+0.0024999999441206455
 
 (
 WRONG SOURCE DIR nottingham train(NO MIC RESPONSE):S1 eval:S3 EPOCHS:500 
