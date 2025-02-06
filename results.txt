@@ -423,7 +423,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.004875000133844358
 
-espoo train:S2 eval:S1 epochs:200amb + 300 omni
+espoo train:S2 eval WRONG SOURCE DIR:S1 epochs:200amb + 300 omni
 multiscale_log_l1 Metric:
 0.959359264356743
 env_loss Metric:
@@ -433,7 +433,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.005035714046763522
 
-espoo train:S2 eval:S1 epochs:200amb + 300 omni
+espoo train:S2 eval WRONG SOURCE DIR:S1 epochs:200amb + 300 omni
 multiscale_log_l1 Metric:
 0.9608819450973607
 env_loss Metric:
@@ -443,7 +443,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.006988094986549446
 
-espoo train:S2 eval:S1 epochs:500omni
+espoo train:S2 eval WRONG SOURCE DIR:S1 epochs:500omni
 multiscale_log_l1 Metric:
 0.9643585098808859
 env_loss Metric:
@@ -453,7 +453,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.004494047623925975
 
-espoo train:S2 eval:S1 epochs:500omni
+espoo train:S2 eval WRONG SOURCE DIR:S1 epochs:500omni
 multiscale_log_l1 Metric:
 0.970699014485528
 env_loss Metric:
@@ -463,7 +463,27 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0068005949059235194
 
-espoo train:S2 eval:S1 epochs:200amb + 300omni loss:rates
+espoo train:S2 eval :S1 epochs:500omni
+multiscale_log_l1 Metric:
+1.0223744218059376
+env_loss Metric:
+0.2542394426053503
+rt60_error Metric:
+249.1039511816842
+rt60_diff Metric:
+0.00832440474602793
+
+espoo train:S2 eval :S1 epochs:500omni
+multiscale_log_l1 Metric:
+0.965368185697215
+env_loss Metric:
+0.2449568961748943
+rt60_error Metric:
+97.5789543219975
+rt60_diff Metric:
+0.0048571427219680375
+
+espoo train:S2 eval WRONG SOURCE DIR:S1 epochs:200amb + 300omni loss:rates
 multiscale_log_l1 Metric:
 0.9602480849457906
 env_loss Metric:
@@ -473,7 +493,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.005056547533188548
 
-espoo train:S2 eval:S1 epochs:200amb + 300omni loss:rates
+espoo train:S2 eval WRONG SOURCE DIR:S1 epochs:200amb + 300omni loss:rates
 multiscale_log_l1 Metric:
 0.9598611033509675
 env_loss Metric:
@@ -483,7 +503,17 @@ rt60_error Metric:
 rt60_diff Metric:
 0.006785714017626431
 
-espoo train:S2(no 0) eval:S2(solo 0) epochs:500omni
+espoo train:S2 eval :S1 epochs:200amb + 300omni loss:rates
+multiscale_log_l1 Metric:
+0.9486348975592234
+env_loss Metric:
+0.22324167542712797
+rt60_error Metric:
+75.65044236183167
+rt60_diff Metric:
+0.003630952277619924
+
+espoo train:S2(no 0) eval WRONG SOURCE DIR:S2(solo 0) epochs:500omni
 multiscale_log_l1 Metric:
 0.951282920591015
 env_loss Metric:
@@ -493,7 +523,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0016250002663582563
 
-espoo train:S2(no 0) eval:S2(solo 0) epochs:200ambi + 300omni
+espoo train:S2(no 0) eval WRONG SOURCE DIR:S2(solo 0) epochs:200ambi + 300omni
 multiscale_log_l1 Metric:
 0.9209771347370199
 env_loss Metric:
@@ -503,7 +533,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.011854167096316814
 
-espoo train:S2(no 1) eval:S2(solo 1) epochs:200ambi + 300omni
+espoo train:S2(no 1) eval WRONG SOURCE DIR:S2(solo 1) epochs:200ambi + 300omni
 multiscale_log_l1 Metric:
 0.9683201758452118
 env_loss Metric:
@@ -513,7 +543,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.00897916592657566
 
-espoo train:S2(no 1) eval:S2(solo 1) epochs:500omni
+espoo train:S2(no 1) eval WRONG SOURCE DIR:S2(solo 1) epochs:500omni
 multiscale_log_l1 Metric:
 0.9856638141592942
 env_loss Metric:
@@ -523,7 +553,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.010437499731779099
 
-espoo train:S2(no 2) eval:S2(solo 2) epochs:200ambi + 300omni
+espoo train:S2(no 2) eval WRONG SOURCE DIR:S2(solo 2) epochs:200ambi + 300omni
 multiscale_log_l1 Metric:
 0.9014674859393768
 env_loss Metric:
@@ -533,7 +563,17 @@ rt60_error Metric:
 rt60_diff Metric:
 0.0006875001126900315
 
-espoo train:S2(no 3) eval:S2(solo 3) epochs:200ambi + 300omni
+espoo train:S2(no 2) eval WRONG SOURCE DIR:S2(solo 2) epochs:500omni
+multiscale_log_l1 Metric:
+0.900188908608789
+env_loss Metric:
+0.21880725867638967
+rt60_error Metric:
+33.82117462158203
+rt60_diff Metric:
+0.0004583332920446992
+
+espoo train:S2(no 3) eval WRONG SOURCE DIR:S2(solo 3) epochs:200ambi + 300omni
 multiscale_log_l1 Metric:
 0.9696099848415459
 env_loss Metric:
@@ -543,7 +583,7 @@ rt60_error Metric:
 rt60_diff Metric:
 0.00527083408087492
 
-espoo train:S2(no 3) eval:S2(solo 3) epochs:500omni
+espoo train:S2(no 3) eval WRONG SOURCE DIR:S2(solo 3) epochs:500omni
 multiscale_log_l1 Metric:
 0.9722096517731449
 env_loss Metric:
@@ -552,3 +592,33 @@ rt60_error Metric:
 74.7357406616211
 rt60_diff Metric:
 0.006104166619479656
+
+espoo train:S2(no 4) eval WRONG SOURCE DIR:S2(solo 4) epochs:500omni
+multiscale_log_l1 Metric:
+0.9596743551398162
+env_loss Metric:
+0.2680400764427661
+rt60_error Metric:
+3835.793701171875
+rt60_diff Metric:
+0.01602083258330822
+
+espoo train:S2(no 4) eval WRONG SOURCE DIR:S2(solo 4) epochs:200ambi + 300omni
+multiscale_log_l1 Metric:
+0.9254767196514034
+env_loss Metric:
+0.2318840155661907
+rt60_error Metric:
+244.41342163085938
+rt60_diff Metric:
+0.001020833384245634
+
+espoo train:S2(no 5) eval WRONG SOURCE DIR:S2(solo 5) epochs:200ambi + 300omni
+multiscale_log_l1 Metric:
+0.9002199776803606
+env_loss Metric:
+0.19004765815051938
+rt60_error Metric:
+66.99925994873047
+rt60_diff Metric:
+0.004062499850988388
