@@ -73,7 +73,7 @@ Train and Test Split
 """
 
 #train_indices = np.arange(8) #10
-train_indices = np.array([0,1,2,3,4,5,6])
+train_indices = np.array([0,1,2,3,4,5,6,7])
 
 valid_indices = np.array([])
 

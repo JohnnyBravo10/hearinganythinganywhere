@@ -120,15 +120,15 @@ def train_loop(R, Ls, train_gt_audio, D = None,
     
     while epoch < n_epochs:
 
-        print("Epoch n°:")
-        print(epoch, flush=True)
+        #print("Epoch n°:")
+        #print(epoch, flush=True)
 
         N_train = len(Ls)
         N_iter = max(int(N_train/batch_size),1)
         rand_idx = np.random.permutation(N_train)
 
         for i in range(N_iter):
-            print("iteration number:", i+1, "of", N_iter)
+            #print("iteration number:", i+1, "of", N_iter)
             
             curr_indices = rand_idx[i*batch_size:(i+1)*batch_size]            
             optimizer.zero_grad()
@@ -201,7 +201,7 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                         
                     else:
                         convolved_pred = F.fftconvolve(output, pink_noise)[...,:5*fs]
-                        convolved_gt =  F.fftconvolve(train_gt_audio[idx,:R.RIR_length], pink_noise)[...,:5*fs]
+                        convolved_gt =  F.fftconvolve(train_gt_audio[idx,:R.RIR_length].to(device), pink_noise)[...,:5*fs]######original code didn't have .to(device)
                     #############################################à################################################
                     
                     pink_noise_loss = loss_fcn(convolved_pred, convolved_gt)
