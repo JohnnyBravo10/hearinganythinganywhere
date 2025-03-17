@@ -3,6 +3,8 @@ import config
 import trace1 as G
 import rooms.dataset as dataset
 
+import torch
+
 """
 Importing this document automatically loads data from the Complex room dataset
 """
@@ -307,7 +309,46 @@ BaseDataset = dataset.Dataset(
     valid_indices = valid_indices_base,
     max_order = max_order,
     max_axial_order = max_axial_order,
-    n_data = 408
+    n_data = 408,
+    ####################################
+    rendering_methods =["omni" for _ in range(408)],
+    mic_orientations = [torch.Tensor([0,1,0]) for _ in range(408)],
+
+
+    mic_0_gains = np.tile([{500: 1.02, 1000: 1, 5000: 0.90, 10000: 1.23, 20000: 1.35}, 
+                   {500: 1.11, 1000: 1, 5000: 0.79, 10000: 0.93, 20000: 1.48}, 
+                   {500: 0.89, 1000: 1, 5000: 0.82, 10000: 1.11, 20000:1.32}, 
+                   {500: 0.99, 1000: 1, 5000: 0.84, 10000: 1.07, 20000: 1.36},
+                   {500: 1.16, 1000: 1, 5000: 0.83, 10000: 1.11, 20000:1.45},
+                   {500: 0.93, 1000: 1, 5000: 0.91, 10000: 1.26, 20000:1.58},
+                   {500: 0.92, 1000: 1, 5000: 0.93, 10000: 1.66, 20000:2.29},
+                   {500: 1.12, 1000: 1, 5000: 0.88, 10000: 1.27, 20000:1.51},
+                   {500: 1.01, 1000: 1, 5000: 0.91, 10000: 1.26, 20000:1.55},
+                   {500: 1.01, 1000: 1, 5000: 0.95, 10000: 1.12, 20000:1.64},
+                   {500: 1.11, 1000: 1, 5000: 0.84, 10000: 1.04, 20000:1.27},
+                   {500: 1.20, 1000: 1, 5000: 0.97, 10000: 1.35, 20000:1.70}], 34), 
+    mic_180_loss=  [{500: 0, 1000: 0.3, 5000: 1.60, 10000: 3.75, 20000:7} for _ in range(408)]
+
+)
+
+BaseDataset_no_mic_char = dataset.Dataset(
+    load_dir = config.complexBase_path,
+    speaker_xyz = np.array([ 2.8377, 10.1228,  1.1539]), #Error - 32 cm
+    all_surfaces = all_surfaces,
+    speed_of_sound = speed_of_sound,
+    default_binaural_listener_forward = np.array([0,1,0]),
+    default_binaural_listener_left = np.array([-1,0,0]),
+    parallel_surface_pairs = parallel_surface_pairs,
+    train_indices = train_indices_base,
+    valid_indices = valid_indices_base,
+    max_order = max_order,
+    max_axial_order = max_axial_order,
+    n_data = 408,
+
+    rendering_methods =[None for _ in range(408)], 
+    mic_orientations = [None for _ in range(408)], 
+    mic_0_gains = [None for _ in range(408)], 
+    mic_180_loss=  [None for _ in range(408)]
 
 )
 
@@ -342,6 +383,45 @@ TranslationDataset = dataset.Dataset(
     valid_indices = valid_indices_132,
     max_order = max_order,
     max_axial_order = max_axial_order,
-    n_data = 132
+    n_data = 132,
+    ####################################
+    rendering_methods =["omni" for _ in range(132)],
+    mic_orientations = [torch.Tensor([0,1,0]) for _ in range(132)],
+
+
+    mic_0_gains = np.tile([{500: 1.02, 1000: 1, 5000: 0.90, 10000: 1.23, 20000: 1.35}, 
+                   {500: 1.11, 1000: 1, 5000: 0.79, 10000: 0.93, 20000: 1.48}, 
+                   {500: 0.89, 1000: 1, 5000: 0.82, 10000: 1.11, 20000:1.32}, 
+                   {500: 0.99, 1000: 1, 5000: 0.84, 10000: 1.07, 20000: 1.36},
+                   {500: 1.16, 1000: 1, 5000: 0.83, 10000: 1.11, 20000:1.45},
+                   {500: 0.93, 1000: 1, 5000: 0.91, 10000: 1.26, 20000:1.58},
+                   {500: 0.92, 1000: 1, 5000: 0.93, 10000: 1.66, 20000:2.29},
+                   {500: 1.12, 1000: 1, 5000: 0.88, 10000: 1.27, 20000:1.51},
+                   {500: 1.01, 1000: 1, 5000: 0.91, 10000: 1.26, 20000:1.55},
+                   {500: 1.01, 1000: 1, 5000: 0.95, 10000: 1.12, 20000:1.64},
+                   {500: 1.11, 1000: 1, 5000: 0.84, 10000: 1.04, 20000:1.27},
+                   {500: 1.20, 1000: 1, 5000: 0.97, 10000: 1.35, 20000:1.70}], 11), 
+    mic_180_loss=  [{500: 0, 1000: 0.3, 5000: 1.60, 10000: 3.75, 20000:7} for _ in range(132)]
+
+)
+
+TranslationDataset_no_mic_char = dataset.Dataset(
+    load_dir = config.complexTranslation_path,
+    speaker_xyz = np.array([6.237, 8.180, 0.90]), # Ground Truth
+    all_surfaces = all_surfaces,
+    speed_of_sound = speed_of_sound,
+    default_binaural_listener_forward = np.array([0,1,0]),
+    default_binaural_listener_left = np.array([-1,0,0]),
+    parallel_surface_pairs = parallel_surface_pairs,
+    train_indices = train_indices_132,
+    valid_indices = valid_indices_132,
+    max_order = max_order,
+    max_axial_order = max_axial_order,
+    n_data = 132,
+
+    rendering_methods =[None for _ in range(132)], 
+    mic_orientations = [None for _ in range(132)], 
+    mic_0_gains = [None for _ in range(132)], 
+    mic_180_loss=  [None for _ in range(132)]
 
 )

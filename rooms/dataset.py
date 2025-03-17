@@ -121,6 +121,8 @@ def dataLoader(name):
         import rooms.dampened as dampened
         if name =="dampenedBase":
             D = dampened.BaseDataset
+        elif name =="dampenedBase_no_mic_char":
+            D = dampened.BaseDataset_no_mic_char
         elif name =="dampenedRotation":
             D = dampened.RotationDataset
         elif name =="dampenedTranslation":
@@ -150,10 +152,14 @@ def dataLoader(name):
         import rooms.complex as complex
         if name == "complexBase":
             D = complex.BaseDataset
+        elif name =="complexBase_no_mic_char":
+            D = complex.BaseDataset_no_mic_char
         elif name == "complexRotation":
             D = complex.RotationDataset
         elif name == "complexTranslation":
             D = complex.TranslationDataset
+        elif name == "complexTranslation_no_mic_char":
+            D = complex.TranslationDataset_no_mic_char
         else:
             raise ValueError('Invalid Dataset Name')
         

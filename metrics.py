@@ -245,7 +245,7 @@ def training_loss_directional_with_decay(x,y, cutoff =9000, eps=1e-6, l = 10):
 
 ##############################################################################################################################
 
-def training_loss_with_decay(x,y,cutoff=9000, eps=1e-6, l = 50): #########
+def training_loss_with_decay(x,y,cutoff=9000, eps=1e-6, l = 10): #########
     """
     Training Loss
 
@@ -359,7 +359,7 @@ def env_loss(x, y, envelope_size=32, eps=1e-6):
     
     return loss
 
-def rt60_error(x, y, eps=1e-6):
+def rt60_error(x, y, eps=1e-13):
     """Percentual error in RT60"""
     x = x.detach().cpu()
     y = y.detach().cpu()

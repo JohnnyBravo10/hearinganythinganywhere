@@ -3,6 +3,8 @@ import config
 import trace1 as G
 import rooms.dataset as dataset
 
+import torch ##############################
+
 
 """
 Importing this document automatically loads data from the dampened room dataset
@@ -87,8 +89,49 @@ BaseDataset = dataset.Dataset(
     valid_indices = valid_indices_base,
     max_order = max_order,
     max_axial_order = max_axial_order,
-    n_data = 276
+    n_data = 276,
+
+    ####################################
+    rendering_methods =["omni" for _ in range(276)],
+    mic_orientations = [torch.Tensor([-1,0,0]) for _ in range(276)],
+
+
+    mic_0_gains = np.tile([{500: 1.02, 1000: 1, 5000: 0.90, 10000: 1.23, 20000: 1.35}, 
+                   {500: 1.11, 1000: 1, 5000: 0.79, 10000: 0.93, 20000: 1.48}, 
+                   {500: 0.89, 1000: 1, 5000: 0.82, 10000: 1.11, 20000:1.32}, 
+                   {500: 0.99, 1000: 1, 5000: 0.84, 10000: 1.07, 20000: 1.36},
+                   {500: 1.16, 1000: 1, 5000: 0.83, 10000: 1.11, 20000:1.45},
+                   {500: 0.93, 1000: 1, 5000: 0.91, 10000: 1.26, 20000:1.58},
+                   {500: 0.92, 1000: 1, 5000: 0.93, 10000: 1.66, 20000:2.29},
+                   {500: 1.12, 1000: 1, 5000: 0.88, 10000: 1.27, 20000:1.51},
+                   {500: 1.01, 1000: 1, 5000: 0.91, 10000: 1.26, 20000:1.55},
+                   {500: 1.01, 1000: 1, 5000: 0.95, 10000: 1.12, 20000:1.64},
+                   {500: 1.11, 1000: 1, 5000: 0.84, 10000: 1.04, 20000:1.27},
+                   {500: 1.20, 1000: 1, 5000: 0.97, 10000: 1.35, 20000:1.70}], 23), 
+    mic_180_loss=  [{500: 0, 1000: 0.3, 5000: 1.60, 10000: 3.75, 20000:7} for _ in range(276)]
+
+    ######################################
 )
+
+BaseDataset_no_mic_char = dataset.Dataset(
+    load_dir = config.dampenedBase_path,
+    speaker_xyz = np.array([2.4542, 2.4981, 1.2654]), #Estimated 11/14, error 11 cm
+    all_surfaces = walls,
+    speed_of_sound = speed_of_sound,
+    default_binaural_listener_forward = np.array([0,1,0]),
+    default_binaural_listener_left = np.array([-1,0,0]),
+    parallel_surface_pairs = parallel_surface_pairs,
+    train_indices = train_indices_base,
+    valid_indices = valid_indices_base,
+    max_order = max_order,
+    max_axial_order = max_axial_order,
+    n_data = 276,
+    
+    rendering_methods =[None for _ in range(276)], 
+    mic_orientations = [None for _ in range(276)], 
+    mic_0_gains = [None for _ in range(276)], 
+    mic_180_loss=  [None for _ in range(276)])
+
 
 train_indices_120 = np.append((np.arange(11)*11), 109)
 valid_indices_120 = dataset.compute_complement_indices(train_indices_120, 120)[::2]
@@ -107,6 +150,7 @@ RotationDataset = dataset.Dataset(
     max_order = max_order,
     max_axial_order = max_axial_order,
     n_data = 120
+    
 )
 
 
