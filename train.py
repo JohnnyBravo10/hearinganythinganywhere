@@ -148,11 +148,11 @@ def train_loop(R, Ls, train_gt_audio, D = None,
                 if rendering_method is not None:
                     if rendering_method == 'base':
                         output = R.render_RIR(Ls[idx])
-                        loss_fcn = metrics.training_loss
+                        loss_fcn = metrics.training_loss_with_decay################
                         
                     elif rendering_method == 'omni':
                         output = R.render_RIR_omni(Ls[idx])
-                        loss_fcn = metrics.training_loss
+                        loss_fcn = metrics.training_loss_with_decay################
                         
                     elif rendering_method == 'cardioid':
                         output = R.render_RIR_cardioid(Ls[idx])

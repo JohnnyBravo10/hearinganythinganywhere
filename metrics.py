@@ -245,7 +245,7 @@ def training_loss_directional_with_decay(x,y, cutoff =9000, eps=1e-6, l = 10):
 
 ##############################################################################################################################
 
-def training_loss_with_decay(x,y,cutoff=9000, eps=1e-6, l = 10): #########
+def training_loss_with_decay(x,y,cutoff=9000, eps=1e-6, l = 5): #########
     """
     Training Loss
 
@@ -301,7 +301,6 @@ def decay_curve(x, n_fft = 512, hop_length = None):
     for k in range(K-1):
         D[k] = 1 + (E[k] / torch.sum(E[k+1:]))#.item()
 
-    print("D:", D)
     return D
 ##############################################################################################################################
 
